@@ -3,6 +3,7 @@
 Typed Salesforce from your org's metadata — not another dynamic dict client.
 
 [![CI](https://github.com/fishygeek91/cloudy-salesforce/actions/workflows/ci.yml/badge.svg)](https://github.com/fishygeek91/cloudy-salesforce/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/cloudy-salesforce)](https://pypi.org/project/cloudy-salesforce/)
 [![Python 3.10–3.13](https://img.shields.io/badge/python-3.10--3.13-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/github/license/fishygeek91/cloudy-salesforce)](https://github.com/fishygeek91/cloudy-salesforce/blob/main/LICENSE)
 
