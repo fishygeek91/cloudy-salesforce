@@ -55,6 +55,13 @@ def test_parse_type_picklist_sanitization():
     assert "mystery" not in salesforce_to_python_type_map
 
 
+def test_parse_type_date_and_datetime():
+    assert parse_type("CloseDate", "date") == "datetime.date"
+    assert parse_type("CreatedDate", "datetime") == "datetime.datetime"
+    assert salesforce_to_python_type_map["date"] == "datetime.date"
+    assert salesforce_to_python_type_map["datetime"] == "datetime.datetime"
+
+
 def test_parse_sf_fields_relationships():
     gen = _generator_instance()
     generated_set = {"Account", "Opportunity"}
@@ -195,12 +202,14 @@ def test_template_render_circular_imports(tmp_path):
         fields=account_fields,
         picklist_fields=[],
         related_imports=["Opportunity"],
+        needs_datetime=False,
     )
     opportunity_source = template.render(
         sobject="Opportunity",
         fields=opportunity_fields,
         picklist_fields=[],
         related_imports=["Account"],
+        needs_datetime=False,
     )
 
     pkg_dir = tmp_path / "generated_sobjects"

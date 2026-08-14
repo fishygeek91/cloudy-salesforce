@@ -42,11 +42,13 @@ def _render_sobject(
         for f in field_dicts
         if f["picklist"]
     ]
+    needs_datetime = any("datetime." in f["type"] for f in field_dicts)
     return template.render(
         sobject=class_name,
         fields=prepared_fields,
         picklist_fields=picklist_fields,
         related_imports=related_imports,
+        needs_datetime=needs_datetime,
     )
 
 

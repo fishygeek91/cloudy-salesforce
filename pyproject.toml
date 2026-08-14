@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cloudy-salesforce"
-version = "0.1.0"
+version = "0.2.0"
 description = "Typed Salesforce client with decorator-based query/CRUD and describe-driven dataclass codegen"
 readme = "README.md"
 license = "MIT"

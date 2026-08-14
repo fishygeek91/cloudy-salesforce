@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
@@ -15,4 +16,4 @@ class Opportunity:
     Name: str | None = None
     AccountId: str | None = None
     Account: Account | None = None
-    CloseDate: str | None = None
+    CloseDate: datetime.date | None = None
