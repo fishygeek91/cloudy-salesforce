@@ -72,7 +72,13 @@ def test_init_creates_config_and_env_example(monkeypatch, tmp_path, caplog):
         DEFAULT_CLOUDY_CONFIG_EXAMPLE
     )
     assert env_example_path.read_text(encoding="utf-8") == (
-        "SF_USERNAME=\nSF_PASSWORD=\nSF_SECURITY_TOKEN=\n"
+        "SF_USERNAME=\n"
+        "SF_PASSWORD=\n"
+        "SF_SECURITY_TOKEN=\n"
+        "SF_CLIENT_ID=\n"
+        "SF_PRIVATE_KEY=\n"
+        "SF_ACCESS_TOKEN=\n"
+        "SF_INSTANCE_URL=\n"
     )
     assert "Wrote .cloudy_config" in caplog.text
     assert "Wrote .env.example" in caplog.text
@@ -108,7 +114,13 @@ def test_init_force_overwrites_existing_files(monkeypatch, tmp_path, caplog):
         DEFAULT_CLOUDY_CONFIG_EXAMPLE
     )
     assert env_example_path.read_text(encoding="utf-8") == (
-        "SF_USERNAME=\nSF_PASSWORD=\nSF_SECURITY_TOKEN=\n"
+        "SF_USERNAME=\n"
+        "SF_PASSWORD=\n"
+        "SF_SECURITY_TOKEN=\n"
+        "SF_CLIENT_ID=\n"
+        "SF_PRIVATE_KEY=\n"
+        "SF_ACCESS_TOKEN=\n"
+        "SF_INSTANCE_URL=\n"
     )
     assert "Wrote .cloudy_config" in caplog.text
     assert "Wrote .env.example" in caplog.text

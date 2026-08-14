@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- JWT bearer and session-token authentication (`JwtBearerAuthentication`, `SessionAuthentication`) with `.cloudy_config` aliases
+- Optional rate-limit retries on HTTP 429 and `REQUEST_LIMIT_EXCEEDED` in `SalesforceClient.request`
+
 ## [0.2.0] - 2026-08-14
 
 ### Added
