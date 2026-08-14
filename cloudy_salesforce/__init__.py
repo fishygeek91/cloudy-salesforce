@@ -8,10 +8,10 @@ from cloudy_salesforce.client import (
 )
 from cloudy_salesforce.collections import DmlResult, delete, insert, update, upsert
 from cloudy_salesforce.exceptions import SalesforceError
-from cloudy_salesforce.query import query, soql_query
+from cloudy_salesforce.query import SoqlQuery, query, select, soql_query
 from cloudy_salesforce.sobjects import SObjects, parse_sobject_response, sobject
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "SalesforceClient",
@@ -19,6 +19,8 @@ __all__ = [
     "JwtBearerAuthentication",
     "SessionAuthentication",
     "query",
+    "select",
+    "SoqlQuery",
     "soql_query",
     "insert",
     "update",

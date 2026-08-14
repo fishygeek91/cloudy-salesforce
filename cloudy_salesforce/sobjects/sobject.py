@@ -1,9 +1,23 @@
+from __future__ import annotations
+
 import datetime
 import logging
 import re
 import sys
 import types
-from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    TypeVar,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
+
+if TYPE_CHECKING:
+    from cloudy_salesforce.query.builder import SoqlQuery
 
 from cloudy_salesforce.client import SalesforceClient
 
@@ -20,13 +34,25 @@ def get_sobject_registry() -> dict[str, type]:
 
 
 def sobject(api_name: str | None = None):
-    """Decorator that marks a class as a Salesforce sObject and registers it."""
+    """Decorator that marks a class as a Salesforce sObject and registers it.
+
+    Adds ``cls.select(*fields)`` so generated dataclasses can start a typed
+    SOQL builder without a Jinja change.
+    """
 
     def decorator(cls: type) -> type:
         api_name_to_set = api_name or cls.__name__
         setattr(cls, "__sf_meta__", {"api_name": api_name_to_set})
         _SObjectRegistry[cls.__name__] = cls
         _SObjectRegistry[api_name_to_set] = cls
+
+        def _select(sobject_cls: type[T], *fields: str) -> SoqlQuery[T]:
+            """Start a typed SOQL query for this sObject."""
+            from cloudy_salesforce.query.builder import SoqlQuery
+
+            return SoqlQuery(sobject_cls, fields)
+
+        setattr(cls, "select", classmethod(_select))
         return cls
 
     return decorator
