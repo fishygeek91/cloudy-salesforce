@@ -10,12 +10,16 @@ from typing import (
     TypedDict,
     TypeVar,
     cast,
+    overload,
 )
 
 from ..client import SalesforceClient
-from .return_functions import dml_results_only, records_and_response
+from .return_functions import build_dml_results
+from .serialize import normalize_records
+from .types import DmlResult
 
 T = TypeVar("T")
+SObjectT = TypeVar("SObjectT")
 
 
 class CRUDProps(TypedDict):
@@ -58,7 +62,7 @@ def collections(
         [List[Dict[str, Any]], List[Dict[str, Any]]], T
     ] = cast(
         Callable[[List[Dict[str, Any]], List[Dict[str, Any]]], T],
-        dml_results_only,
+        build_dml_results,
     ),
 ) -> Callable[[Callable[..., CRUDProps]], Callable[..., T]]:
     def decorator(func: Callable[..., CRUDProps]) -> Callable[..., T]:
@@ -92,45 +96,103 @@ def collections(
     return decorator
 
 
-@collections("insert", return_function=records_and_response)
+@overload
 def insert(
     object_type: str,
     records: List[dict],
     all_or_none: bool = True,
     batch_size: int = 200,
     client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def insert(
+    record: SObjectT,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def insert(
+    records: list[SObjectT],
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@collections("insert")
+def insert(
+    first_arg: str | Any,
+    records: List[dict] | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
 ) -> CRUDProps:
+    object_type, normalized_records = normalize_records(first_arg, records)
     if client is None:
         client = SalesforceClient.get_default_instance()
     return {
         "client": client,
         "object_type": object_type,
-        "records": records,
+        "records": normalized_records,
         "all_or_none": all_or_none,
         "batch_size": batch_size,
     }
 
 
-@collections("update", return_function=records_and_response)
+@overload
 def update(
     object_type: str,
     records: List[dict],
     all_or_none: bool = True,
     batch_size: int = 200,
     client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def update(
+    record: SObjectT,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def update(
+    records: list[SObjectT],
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@collections("update")
+def update(
+    first_arg: str | Any,
+    records: List[dict] | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
 ) -> UpdateProps:
+    object_type, normalized_records = normalize_records(first_arg, records)
     if client is None:
         client = SalesforceClient.get_default_instance()
     return {
         "client": client,
         "object_type": object_type,
-        "records": records,
+        "records": normalized_records,
         "all_or_none": all_or_none,
         "batch_size": batch_size,
     }
 
 
-@collections("upsert", return_function=records_and_response)
+@overload
 def upsert(
     object_type: str,
     records: List[dict],
@@ -138,33 +200,94 @@ def upsert(
     all_or_none: bool = True,
     batch_size: int = 200,
     client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def upsert(
+    record: SObjectT,
+    external_id_field: str | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def upsert(
+    records: list[SObjectT],
+    external_id_field: str | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@collections("upsert")
+def upsert(
+    first_arg: str | Any,
+    records: List[dict] | None = None,
+    external_id_field: str | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
 ) -> UpsertProps:
+    object_type, normalized_records = normalize_records(first_arg, records)
     if client is None:
         client = SalesforceClient.get_default_instance()
     return {
         "client": client,
         "object_type": object_type,
-        "records": records,
+        "records": normalized_records,
         "external_id_field": external_id_field,
         "all_or_none": all_or_none,
         "batch_size": batch_size,
     }
 
 
-@collections("delete", return_function=records_and_response)
+@overload
 def delete(
     object_type: str,
     records: List[dict],
     all_or_none: bool = True,
     batch_size: int = 200,
     client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def delete(
+    record: SObjectT,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@overload
+def delete(
+    records: list[SObjectT],
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
+) -> list[DmlResult]: ...
+
+
+@collections("delete")
+def delete(
+    first_arg: str | Any,
+    records: List[dict] | None = None,
+    all_or_none: bool = True,
+    batch_size: int = 200,
+    client: SalesforceClient | None = None,
 ) -> DeleteProps:
+    object_type, normalized_records = normalize_records(first_arg, records)
     if client is None:
         client = SalesforceClient.get_default_instance()
     return {
         "client": client,
         "object_type": object_type,
-        "records": records,
+        "records": normalized_records,
         "all_or_none": all_or_none,
         "batch_size": batch_size,
     }

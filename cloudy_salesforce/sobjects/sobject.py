@@ -1,4 +1,6 @@
+import datetime
 import logging
+import re
 import sys
 import types
 from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
@@ -72,6 +74,32 @@ def _union_non_none_args(annotation: Any) -> list[Any] | None:
     return None
 
 
+def _normalize_sf_datetime_string(value: str) -> str:
+    """Normalize a Salesforce ISO datetime string for ``datetime.fromisoformat``."""
+    if value.endswith("Z"):
+        return value[:-1] + "+00:00"
+    match = re.search(r"([+-]\d{2})(\d{2})$", value)
+    if match is not None and ":" not in value[match.start():]:
+        return value[:match.start()] + match.group(1) + ":" + match.group(2)
+    return value
+
+
+def _parse_sf_date(value: str) -> datetime.date:
+    """Parse a Salesforce date string (YYYY-MM-DD) into a ``datetime.date``."""
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"Cannot parse date from string: {value}")
+
+
+def _parse_sf_datetime(value: str) -> datetime.datetime:
+    """Parse a Salesforce ISO datetime string into a ``datetime.datetime``."""
+    try:
+        return datetime.datetime.fromisoformat(_normalize_sf_datetime_string(value))
+    except ValueError:
+        raise ValueError(f"Cannot parse datetime from string: {value}")
+
+
 def coerce_value(annotation: Any, value: Any) -> Any:
     """Coerce a Salesforce JSON value to match the annotated field type."""
     if value is None:
@@ -81,6 +109,22 @@ def coerce_value(annotation: Any, value: Any) -> Any:
     if non_none_args is not None:
         if len(non_none_args) == 1:
             return coerce_value(non_none_args[0], value)
+        return value
+
+    if annotation is datetime.datetime:
+        if isinstance(value, datetime.datetime):
+            return value
+        if isinstance(value, str):
+            return _parse_sf_datetime(value)
+        return value
+
+    if annotation is datetime.date:
+        if isinstance(value, datetime.datetime):
+            return value.date()
+        if isinstance(value, datetime.date):
+            return value
+        if isinstance(value, str):
+            return _parse_sf_date(value)
         return value
 
     if get_origin(annotation) is list:

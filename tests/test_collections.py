@@ -1,15 +1,35 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+
 import pytest
 
+from cloudy_salesforce.collections import DmlResult, delete, insert, update
 from cloudy_salesforce.collections.crud_operations import (
     add_attributes,
     batch_records,
     build_payload,
     get_id_list,
 )
+from cloudy_salesforce.collections.serialize import serialize_record
+from cloudy_salesforce.sobjects import sobject
 
 
 class FakeClient:
     api_version = "v61.0"
+
+    def __init__(self, responses: list | None = None):
+        self._responses = list(responses or [])
+        self.calls: list[dict] = []
+
+    def request(self, method, url=None, body=None, params=None):
+        self.calls.append(
+            {"method": method, "url": url, "body": body, "params": params}
+        )
+        if not self._responses:
+            raise AssertionError("Unexpected extra request")
+        return self._responses.pop(0)
 
 
 def _props(records, all_or_none=True):
@@ -20,6 +40,40 @@ def _props(records, all_or_none=True):
         "all_or_none": all_or_none,
         "batch_size": 200,
     }
+
+
+@sobject()
+@dataclass
+class Account:
+    Id: str | None = None
+    Name: str | None = None
+    Industry: str | None = None
+    Description: str | None = None
+
+
+@sobject()
+@dataclass
+class Opportunity:
+    Id: str | None = None
+    Name: str | None = None
+    AccountId: str | None = None
+    Account: Account | None = None
+
+
+@sobject()
+@dataclass
+class Event:
+    Id: str | None = None
+    Subject: str | None = None
+    ActivityDate: date | None = None
+    StartDateTime: datetime | None = None
+
+
+def _success_response(record_id: str, *, created: bool | None = None) -> list[dict]:
+    item: dict = {"id": record_id, "success": True, "errors": []}
+    if created is not None:
+        item["created"] = created
+    return [item]
 
 
 def test_batch_records_splits_into_expected_batches():
@@ -69,3 +123,148 @@ def test_get_id_list_accepts_id_or_lowercase_id():
 def test_get_id_list_raises_when_missing():
     with pytest.raises(ValueError, match="does not contain an Id/id field"):
         get_id_list([{"Name": "no id here"}])
+
+
+def test_insert_dataclass_serializes_to_composite_body():
+    fake = FakeClient([_success_response("001NEW", created=True)])
+    record = Account(Name="Acme", Industry="Technology", Description=None)
+
+    results = insert(record, client=fake)
+
+    call = fake.calls[0]
+    assert call["method"] == "POST"
+    body_record = call["body"]["records"][0]
+    assert body_record["attributes"]["type"] == "Account"
+    assert body_record["Name"] == "Acme"
+    assert body_record["Industry"] == "Technology"
+    assert "Description" not in body_record
+    assert len(results) == 1
+    assert isinstance(results[0], DmlResult)
+    assert results[0].id == "001NEW"
+    assert results[0].success is True
+    assert results[0].created is True
+    assert results[0].record == {"Name": "Acme", "Industry": "Technology"}
+
+
+def test_insert_list_of_dataclasses():
+    fake = FakeClient(
+        [
+            [
+                {"id": "001A", "success": True, "errors": [], "created": True},
+                {"id": "001B", "success": True, "errors": [], "created": True},
+            ]
+        ]
+    )
+    records = [Account(Name="Acme"), Account(Name="Globex")]
+
+    results = insert(records, client=fake)
+
+    body_records = fake.calls[0]["body"]["records"]
+    assert len(body_records) == 2
+    assert body_records[0]["Name"] == "Acme"
+    assert body_records[1]["Name"] == "Globex"
+    assert len(results) == 2
+    assert results[0].id == "001A"
+    assert results[1].id == "001B"
+
+
+def test_insert_dict_api_still_works():
+    fake = FakeClient([_success_response("001DICT", created=True)])
+
+    results = insert("Account", [{"Name": "Acme"}], client=fake)
+
+    body_record = fake.calls[0]["body"]["records"][0]
+    assert body_record["attributes"]["type"] == "Account"
+    assert body_record["Name"] == "Acme"
+    assert results[0].success is True
+    assert results[0].record == {"Name": "Acme"}
+
+
+def test_update_from_dataclass():
+    fake = FakeClient([_success_response("001UPD")])
+    record = Account(Id="001UPD", Name="Acme Inc")
+
+    results = update(record, client=fake)
+
+    call = fake.calls[0]
+    assert call["method"] == "PATCH"
+    body_record = call["body"]["records"][0]
+    assert body_record["Id"] == "001UPD"
+    assert body_record["Name"] == "Acme Inc"
+    assert results[0].id == "001UPD"
+    assert results[0].success is True
+
+
+def test_delete_from_dataclass():
+    fake = FakeClient([_success_response("001DEL")])
+    record = Account(Id="001DEL")
+
+    results = delete(record, client=fake)
+
+    call = fake.calls[0]
+    assert call["method"] == "DELETE"
+    assert call["params"]["ids"] == "001DEL"
+    assert results[0].id == "001DEL"
+    assert results[0].success is True
+
+
+def test_serialize_skips_nested_account_on_opportunity():
+    opp = Opportunity(
+        Name="Big Deal",
+        AccountId="001PARENT",
+        Account=Account(Id="001PARENT", Name="Parent Co"),
+    )
+
+    serialized = serialize_record(opp)
+
+    assert serialized == {"Name": "Big Deal", "AccountId": "001PARENT"}
+    assert "Account" not in serialized
+
+
+def test_serialize_date_and_datetime_fields():
+    event = Event(
+        Subject="Kickoff",
+        ActivityDate=date(2024, 1, 15),
+        StartDateTime=datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+    serialized = serialize_record(event)
+
+    assert serialized["ActivityDate"] == "2024-01-15"
+    assert serialized["StartDateTime"] == "2024-01-15T12:00:00.000+0000"
+
+
+def test_insert_returns_dml_result_list_from_fake_response():
+    fake = FakeClient(
+        [
+            [
+                {
+                    "id": "001XYZ",
+                    "success": True,
+                    "errors": [],
+                    "created": True,
+                }
+            ]
+        ]
+    )
+
+    results = insert(Account(Name="Acme"), client=fake)
+
+    assert len(results) == 1
+    result = results[0]
+    assert isinstance(result, DmlResult)
+    assert result.id == "001XYZ"
+    assert result.success is True
+    assert result.errors == []
+    assert result.created is True
+    assert result.record == {"Name": "Acme"}
+
+
+def test_insert_mixed_sobject_types_raises_type_error():
+    with pytest.raises(TypeError, match="same sObject type"):
+        insert([Account(Name="Acme"), Opportunity(Name="Deal")])
+
+
+def test_insert_list_of_dicts_without_object_type_raises_type_error():
+    with pytest.raises(TypeError, match="object_type string"):
+        insert([{"Name": "Acme"}])

@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Dict, List, Tuple, TypeVar
 
+from .types import DmlResult
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -8,6 +10,23 @@ T = TypeVar("T")
 
 def dml_results_only(records: List[Dict[str, Any]], results: T) -> T:
     return results
+
+
+def build_dml_results(
+    records: List[Dict[str, Any]], results: List[Dict[str, Any]]
+) -> List[DmlResult]:
+    dml_results: List[DmlResult] = []
+    for record, response in zip(records, results):
+        dml_results.append(
+            DmlResult(
+                id=response.get("id"),
+                success=response["success"],
+                errors=response.get("errors", []),
+                created=response.get("created"),
+                record=record,
+            )
+        )
+    return dml_results
 
 
 def records_and_response(

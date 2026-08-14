@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
 
 import pytest
@@ -23,6 +24,8 @@ class User:
 class Opportunity:
     Id: str | None = None
     Name: str | None = None
+    CloseDate: datetime.date | None = None
+    CreatedDate: datetime.datetime | None = None
 
 
 @sobject()
@@ -33,6 +36,52 @@ class Account:
     Industry: str | None = None
     Owner: User | None = None
     Opportunities: list[Opportunity] | None = None
+
+
+def test_close_date_string_coerced_to_date():
+    record = {
+        "Id": "006ABC",
+        "CloseDate": "2024-01-15",
+        "attributes": {"type": "Opportunity"},
+    }
+    result = parse_record(Opportunity, record)
+    assert result.CloseDate == datetime.date(2024, 1, 15)
+    assert isinstance(result.CloseDate, datetime.date)
+
+
+def test_created_date_string_coerced_to_datetime():
+    record = {
+        "Id": "006ABC",
+        "CreatedDate": "2024-01-15T12:30:00.000+0000",
+        "attributes": {"type": "Opportunity"},
+    }
+    result = parse_record(Opportunity, record)
+    assert result.CreatedDate == datetime.datetime(
+        2024, 1, 15, 12, 30, 0, tzinfo=datetime.timezone.utc
+    )
+    assert isinstance(result.CreatedDate, datetime.datetime)
+
+
+def test_created_date_z_suffix_coerced_to_datetime():
+    record = {
+        "Id": "006ABC",
+        "CreatedDate": "2024-01-15T12:30:00.000Z",
+        "attributes": {"type": "Opportunity"},
+    }
+    result = parse_record(Opportunity, record)
+    assert result.CreatedDate == datetime.datetime(
+        2024, 1, 15, 12, 30, 0, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_invalid_date_string_raises():
+    record = {
+        "Id": "006ABC",
+        "CloseDate": "not-a-date",
+        "attributes": {"type": "Opportunity"},
+    }
+    with pytest.raises(ValueError, match="Cannot parse date"):
+        parse_record(Opportunity, record)
 
 
 def test_scalars_assigned():

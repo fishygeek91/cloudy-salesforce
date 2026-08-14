@@ -109,11 +109,14 @@ class SObjectGenerator:
             if f["picklist"]
         ]
 
+        needs_datetime = any("datetime." in f["type"] for f in fields)
+
         generated_file = self.template.render(
             sobject=sobject,
             fields=prepared_fields,
             picklist_fields=picklist_fields,
             related_imports=related_imports,
+            needs_datetime=needs_datetime,
         )
 
         absolute_path = os.path.join(self.output_dir, f"{sobject}.py")
@@ -218,10 +221,10 @@ salesforce_to_python_type_map = {
     "double": "float",
     "url": "str",
     "textarea": "str",
-    "date": "str",
+    "date": "datetime.date",
     "int": "int",
     "long": "int",
-    "datetime": "str",
+    "datetime": "datetime.datetime",
     "address": "str",
     "encryptedstring": "str",
     "currency": "float",

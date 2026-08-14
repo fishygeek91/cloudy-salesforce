@@ -97,18 +97,29 @@ accounts = query("SELECT Id FROM Account", parse_as=Account)
 
 ## Insert, update, upsert, delete
 
-DML currently takes an object name and `list[dict]` — not generated dataclass instances.
+Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`; `None` fields and nested relationship objects are omitted.
 
 ```python
 from cloudy_salesforce import insert, update, upsert, delete
+from sobjects import Account
 
-insert("Account", [{"Name": "Acme"}], client=client)
-update("Account", [{"Id": "001...", "Name": "Acme Corp"}], client=client)
-upsert("Account", [{"Name": "Acme", "External_Id__c": "x1"}], external_id_field="External_Id__c", client=client)
-delete("Account", [{"Id": "001..."}], client=client)
+results = insert(Account(Name="Acme", Industry="Technology"), client=client)
+results[0].id
+results[0].success
+
+insert([Account(Name="Acme"), Account(Name="Globex")], client=client)
+update(Account(Id="001...", Name="Acme Corp"), client=client)
+upsert(Account(Name="Acme", External_Id__c="x1"), external_id_field="External_Id__c", client=client)
+delete(Account(Id="001..."), client=client)
 ```
 
-Operations use the Salesforce composite collection API and batch records automatically (default batch size 200).
+Dict form still works:
+
+```python
+insert("Account", [{"Name": "Acme"}], client=client)
+```
+
+Operations use the Salesforce composite collection API and batch records automatically (default batch size 200). REST failures raise `SalesforceError` with `error_code` and `status_code`.
 
 ## How codegen works
 
@@ -125,7 +136,7 @@ flowchart LR
 | Picklist / multipicklist field | `Literal["Value1", "Value2", ...] \| str` |
 | Child relationship (e.g. Opportunities on Account) | `list[Opportunity] \| None` |
 | Lookup / reference field | `str \| None` (Id); relationship object only if that sObject is also generated |
-| Standard scalar fields | `str`, `int`, `float`, or `bool` (`date` / `datetime` currently stay `str`) |
+| Standard scalar fields | `str`, `int`, `float`, `bool`, `datetime.date`, or `datetime.datetime` |
 
 Picklist literals reflect active values at generation time. The `| str` fallback covers values added to the org later.
 
@@ -171,4 +182,4 @@ client = SalesforceClient(auth)
 
 ## Status
 
-v0.1.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.
+v0.2.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.

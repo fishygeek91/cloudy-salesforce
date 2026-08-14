@@ -1,13 +1,59 @@
 import logging
-from typing import Any
+from typing import Any, NoReturn
 
 import requests
 from requests.exceptions import HTTPError
+
+from cloudy_salesforce.exceptions import SalesforceError
 
 from .auth import BaseAuthentication
 from .config import build_auth_from_alias, load_cloudy_config, resolve_alias
 
 logger = logging.getLogger(__name__)
+
+
+def _raise_salesforce_error(http_err: HTTPError) -> NoReturn:
+    """Convert an HTTPError into a structured SalesforceError."""
+    response = http_err.response
+    status_code = response.status_code if response is not None else None
+
+    if response is None:
+        raise SalesforceError(
+            str(http_err),
+            status_code=status_code,
+        ) from http_err
+
+    try:
+        body = response.json()
+    except ValueError:
+        raise SalesforceError(
+            response.text or str(http_err),
+            status_code=status_code,
+            response_body=response.text,
+        ) from http_err
+
+    if isinstance(body, list) and body and isinstance(body[0], dict):
+        entry = body[0]
+        raise SalesforceError(
+            entry.get("message", str(http_err)),
+            status_code=status_code,
+            error_code=entry.get("errorCode"),
+            response_body=body,
+        ) from http_err
+
+    if isinstance(body, dict) and ("errorCode" in body or "message" in body):
+        raise SalesforceError(
+            body.get("message", str(http_err)),
+            status_code=status_code,
+            error_code=body.get("errorCode"),
+            response_body=body,
+        ) from http_err
+
+    raise SalesforceError(
+        str(http_err),
+        status_code=status_code,
+        response_body=body,
+    ) from http_err
 
 
 class SalesforceClient:
@@ -112,7 +158,7 @@ class SalesforceClient:
 
         except HTTPError as http_err:
             logger.error(f"HTTP error occurred during query: {http_err}")
-            raise
+            _raise_salesforce_error(http_err)
         except Exception as err:
             logger.error(f"Other error occurred during query: {err}")
             raise
