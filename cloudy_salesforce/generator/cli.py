@@ -40,6 +40,10 @@ def _get_auth(alias: dict) -> UsernamePasswordAuthentication:
             if value is None:
                 raise ValueError(f"Missing required environment variable: {var_name}")
 
+        assert username is not None
+        assert password is not None
+        assert security_token is not None
+
         kwargs: dict[str, str] = {
             "username": username,
             "password": password,
@@ -85,6 +89,12 @@ def generate(args):
 
 
 def main():
+    if not logging.root.handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s %(name)s: %(message)s",
+        )
+
     parser = argparse.ArgumentParser(
         description="Generate typed Salesforce sObject dataclasses from org metadata.",
         usage="%(prog)s [command] [options]",

@@ -1,7 +1,7 @@
 import logging
 import sys
 import types
-from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, TypeVar, Union, cast, get_args, get_origin, get_type_hints
 
 from cloudy_salesforce.client import SalesforceClient
 
@@ -22,7 +22,7 @@ def sobject(api_name: str | None = None):
 
     def decorator(cls: type) -> type:
         api_name_to_set = api_name or cls.__name__
-        cls.__sf_meta__ = {"api_name": api_name_to_set}
+        setattr(cls, "__sf_meta__", {"api_name": api_name_to_set})
         _SObjectRegistry[cls.__name__] = cls
         _SObjectRegistry[api_name_to_set] = cls
         return cls
@@ -148,9 +148,12 @@ class SObjects:
             client = self.sf_client
         from cloudy_salesforce.query import query as run_query
 
-        return run_query(
-            query_string,
-            client=client,
-            parse_as=object_type,
-            include_deleted=include_deleted,
+        return cast(
+            list[T],
+            run_query(
+                query_string,
+                client=client,
+                parse_as=object_type,
+                include_deleted=include_deleted,
+            ),
         )

@@ -9,6 +9,7 @@ from typing import (
     Tuple,
     TypedDict,
     TypeVar,
+    cast,
 )
 
 from ..client import SalesforceClient
@@ -55,7 +56,10 @@ def collections(
     operation: CRUDLiteral,
     return_function: Callable[
         [List[Dict[str, Any]], List[Dict[str, Any]]], T
-    ] = dml_results_only,
+    ] = cast(
+        Callable[[List[Dict[str, Any]], List[Dict[str, Any]]], T],
+        dml_results_only,
+    ),
 ) -> Callable[[Callable[..., CRUDProps]], Callable[..., T]]:
     def decorator(func: Callable[..., CRUDProps]) -> Callable[..., T]:
         @wraps(func)
@@ -212,8 +216,9 @@ def build_payload(
     body = {"allOrNone": all_or_none, "records": add_attributes(records, object_type)}
 
     if operation == "upsert":
-        if "external_id_field" in props and props["external_id_field"] is not None:
-            external_id = props["external_id_field"]
+        upsert_props = cast(UpsertProps, props)
+        if upsert_props.get("external_id_field") is not None:
+            external_id = upsert_props["external_id_field"]
         else:
             external_id = "Id"
         return (
