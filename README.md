@@ -37,7 +37,7 @@ Full generated output: [`examples/generated/Account.py`](examples/generated/Acco
 
 ```bash
 pip install -e ".[dev]"   # local development
-pip install cloudy-salesforce   # published install (coming soon)
+pip install cloudy-salesforce
 ```
 
 Requires Python 3.10+.
