@@ -1,11 +1,9 @@
 from functools import partial, wraps
-import json
-import logging
 from typing import Any, Callable, Literal, TypedDict, TypeVar
 
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
-from .return_functions import response_json_only
 
+from .return_functions import response_json_only
 
 T = TypeVar("T")
 
@@ -15,16 +13,11 @@ class QueryProps(TypedDict):
     soql_query: str
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-QueryEnpoints = Literal["query", "queryAll"]
+QueryEndpoints = Literal["query", "queryAll"]
 
 
 def soql_query(
-    endpoint: QueryEnpoints = "query",
+    endpoint: QueryEndpoints = "query",
     return_function: Callable[[dict[str, Any]], T] = response_json_only,
 ) -> Callable[[Callable[..., QueryProps]], Callable[..., T]]:
     def decorator(func: Callable[..., QueryProps]) -> Callable[..., T]:
@@ -32,7 +25,8 @@ def soql_query(
         def wrapper(*args: Any, **kwargs: Any) -> T:
             props: QueryProps = func(*args, **kwargs)
             client = props["client"]
-            url = f"/services/data/v52.0/{endpoint}"
+            version = getattr(client, "api_version", "v61.0")
+            url = f"/services/data/{version}/{endpoint}"
             params = {"q": props["soql_query"]}
 
             crud_function = partial(client.request, "GET")
@@ -77,11 +71,35 @@ def soql_query(
     return decorator
 
 
-@soql_query()
-def query(soql_query: str, client: SalesforceClient | None = None) -> QueryProps:
+def query(
+    soql: str,
+    client: SalesforceClient | None = None,
+    parse_as: type[T] | None = None,
+    include_deleted: bool = False,
+) -> list[T] | dict[str, Any]:
+    """Run a SOQL query, paginating automatically.
+
+    When ``parse_as`` is a generated ``@sobject`` dataclass, returns ``list[T]``.
+    Otherwise returns the raw Salesforce result dict.
+    """
     if client is None:
         client = SalesforceClient.get_default_instance()
-    return {
-        "client": client,
-        "soql_query": soql_query,
-    }
+    endpoint: QueryEndpoints = "queryAll" if include_deleted else "query"
+
+    if parse_as is not None:
+        from cloudy_salesforce.sobjects.sobject import parse_sobject_response
+
+        return_function: Callable[[dict[str, Any]], Any] = partial(
+            parse_sobject_response, parse_as
+        )
+    else:
+        return_function = response_json_only
+
+    @soql_query(endpoint=endpoint, return_function=return_function)
+    def _run_query() -> QueryProps:
+        return {
+            "client": client,
+            "soql_query": soql,
+        }
+
+    return _run_query()

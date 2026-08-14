@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import pytest
+
+from cloudy_salesforce.sobjects import (
+    get_sobject_registry,
+    parse_sobject_response,
+    sobject,
+)
+from cloudy_salesforce.sobjects.sobject import parse_record
+
+
+@sobject()
+@dataclass
+class User:
+    Id: str | None = None
+
+
+@sobject()
+@dataclass
+class Opportunity:
+    Id: str | None = None
+    Name: str | None = None
+
+
+@sobject()
+@dataclass
+class Account:
+    Id: str | None = None
+    Name: str | None = None
+    Industry: str | None = None
+    Owner: User | None = None
+    Opportunities: list[Opportunity] | None = None
+
+
+def test_scalars_assigned():
+    record = {
+        "Id": "001ABC",
+        "Name": "Acme Corp",
+        "Industry": "Technology",
+        "attributes": {"type": "Account"},
+    }
+    result = parse_record(Account, record)
+    assert result.Id == "001ABC"
+    assert result.Name == "Acme Corp"
+    assert result.Industry == "Technology"
+
+
+def test_null_lookup_stays_none():
+    record = {
+        "Id": "001ABC",
+        "Owner": None,
+        "attributes": {"type": "Account"},
+    }
+    result = parse_record(Account, record)
+    assert result.Owner is None
+
+
+def test_subquery_wrapper_parses_opportunities():
+    record = {
+        "Id": "001ABC",
+        "Opportunities": {
+            "totalSize": 1,
+            "done": True,
+            "records": [
+                {
+                    "Id": "006",
+                    "Name": "Deal",
+                    "attributes": {"type": "Opportunity"},
+                }
+            ],
+        },
+        "attributes": {"type": "Account"},
+    }
+    result = parse_record(Account, record)
+    assert len(result.Opportunities) == 1
+    assert isinstance(result.Opportunities[0], Opportunity)
+    assert result.Opportunities[0].Id == "006"
+    assert result.Opportunities[0].Name == "Deal"
+
+
+def test_unknown_field_skipped():
+    record = {
+        "Id": "001ABC",
+        "NotAField": "should be ignored",
+        "attributes": {"type": "Account"},
+    }
+    result = parse_record(Account, record)
+    assert result.Id == "001ABC"
+    assert not hasattr(result, "NotAField")
+
+
+def test_missing_records_key_raises():
+    with pytest.raises(ValueError, match="missing 'records' key"):
+        parse_sobject_response(Account, {"totalSize": 0, "done": True})
+
+
+def test_empty_records_returns_empty_list():
+    assert parse_sobject_response(Account, {"records": []}) == []
+
+
+def test_forward_ref_registry_resolves_nested_types():
+    registry = get_sobject_registry()
+    assert "Account" in registry
+    assert "Opportunity" in registry
+
+    response = {
+        "records": [
+            {
+                "Id": "001ABC",
+                "Name": "Acme",
+                "Opportunities": {
+                    "totalSize": 1,
+                    "done": True,
+                    "records": [
+                        {
+                            "Id": "006",
+                            "Name": "Big Deal",
+                            "attributes": {"type": "Opportunity"},
+                        }
+                    ],
+                },
+                "attributes": {"type": "Account"},
+            }
+        ]
+    }
+    results = parse_sobject_response(Account, response)
+    assert len(results) == 1
+    assert isinstance(results[0], Account)
+    assert len(results[0].Opportunities) == 1
+    assert isinstance(results[0].Opportunities[0], Opportunity)
+    assert results[0].Opportunities[0].Name == "Big Deal"

@@ -1,37 +1,46 @@
-from .auth import BaseAuthentication
 import logging
+from typing import Any
+
+import requests
 from requests.exceptions import HTTPError
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from .auth import BaseAuthentication
 
-from typing import Any, Dict, List, Type
-import requests
+logger = logging.getLogger(__name__)
 
 
 class SalesforceClient:
+    DEFAULT_API_VERSION = "v61.0"
     _default_instance = None
 
-    def __init__(self, auth_strategy: BaseAuthentication):
+    def __init__(
+        self,
+        auth_strategy: BaseAuthentication,
+        api_version: str = DEFAULT_API_VERSION,
+    ):
         if not isinstance(auth_strategy, BaseAuthentication):
             raise TypeError(
                 "auth_strategy must be an instance of a subclass of BaseAuthentication"
             )
         self.auth_strategy = auth_strategy
+        self.api_version = api_version
 
-        # Set the default instance directly
         if self._default_instance is None:
             self.__class__._default_instance = self
 
     @classmethod
-    def set_default_instance(cls, auth_strategy: BaseAuthentication):
+    def set_default_instance(
+        cls,
+        auth_strategy: BaseAuthentication,
+        api_version: str = DEFAULT_API_VERSION,
+    ):
         """
         Sets the default SalesforceClient instance.
 
         :param auth_strategy: An instance of a subclass of BaseAuthentication.
+        :param api_version: Salesforce REST API version (e.g. "v61.0").
         """
-        cls._default_instance = cls(auth_strategy)
+        cls._default_instance = cls(auth_strategy, api_version=api_version)
 
     @classmethod
     def get_default_instance(cls):
@@ -57,13 +66,15 @@ class SalesforceClient:
         url: str,
         body: dict | None = None,
         params: dict | None = None,
-    ) -> Dict[str, Any] | List[Dict[str, Any]]:
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         request_url = f"{self.get_instance_url()}{url}"
         try:
             response = self.get_session().request(
-                method, request_url, json=body, params=params
+                method, request_url, json=body, params=params, timeout=30
             )
             response.raise_for_status()
+            if not response.content:
+                return {}
             return response.json()
 
         except HTTPError as http_err:

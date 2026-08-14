@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloudy-salesforce"
+version = "0.1.0"
+description = "Typed Salesforce client with decorator-based query/CRUD and describe-driven dataclass codegen"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Fishy Geek", email = "fishygeek91@gmail.com" }]
+keywords = ["salesforce", "soql", "codegen"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+  "requests>=2.32.0",
+  "jinja2>=3.1.0",
+  "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "types-requests",
+]
+
+[project.scripts]
+cloudy-salesforce = "cloudy_salesforce.generator.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/fishygeek91/cloudy-salesforce"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cloudy_salesforce"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

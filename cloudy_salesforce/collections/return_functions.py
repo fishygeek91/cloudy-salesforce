@@ -1,14 +1,12 @@
-from typing import Any, Dict, List, Tuple, TypeVar
 import logging
+from typing import Any, Dict, List, Tuple, TypeVar
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
 
-def response_json_only(records: List[Dict[str, Any]], results: T) -> T:
+def dml_results_only(records: List[Dict[str, Any]], results: T) -> T:
     return results
 
 
@@ -37,8 +35,7 @@ def success_failure(
             successes["count"] += 1
             successes["results"].append(record_result)
 
-    # log the results
-    logger.info(f"---Results for dml:---")
+    logger.info("---Results for dml:---")
     logger.info(f"Successes: {successes['count']}")
     logger.info(f"Failures: {failures['count']}")
     return successes, failures
