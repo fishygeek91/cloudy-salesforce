@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any, NoReturn
 
 import requests
@@ -10,6 +11,8 @@ from .auth import BaseAuthentication
 from .config import build_auth_from_alias, load_cloudy_config, resolve_alias
 
 logger = logging.getLogger(__name__)
+
+_RATE_LIMIT_RETRY_DELAYS = (0.5, 1.0)
 
 
 def _raise_salesforce_error(http_err: HTTPError) -> NoReturn:
@@ -54,6 +57,28 @@ def _raise_salesforce_error(http_err: HTTPError) -> NoReturn:
         status_code=status_code,
         response_body=body,
     ) from http_err
+
+
+def _extract_error_code(http_err: HTTPError) -> str | None:
+    response = http_err.response
+    if response is None:
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    if isinstance(body, list) and body and isinstance(body[0], dict):
+        return body[0].get("errorCode")
+    if isinstance(body, dict):
+        return body.get("errorCode")
+    return None
+
+
+def _is_rate_limited(http_err: HTTPError) -> bool:
+    response = http_err.response
+    if response is not None and response.status_code == 429:
+        return True
+    return _extract_error_code(http_err) == "REQUEST_LIMIT_EXCEEDED"
 
 
 class SalesforceClient:
@@ -147,18 +172,30 @@ class SalesforceClient:
             request_url = url
         else:
             request_url = f"{self.get_instance_url()}{url}"
-        try:
-            response = self.get_session().request(
-                method, request_url, json=body, params=params, timeout=30
-            )
-            response.raise_for_status()
-            if not response.content:
-                return {}
-            return response.json()
+        last_http_err: HTTPError | None = None
+        for attempt in range(len(_RATE_LIMIT_RETRY_DELAYS) + 1):
+            try:
+                response = self.get_session().request(
+                    method, request_url, json=body, params=params, timeout=30
+                )
+                response.raise_for_status()
+                if not response.content:
+                    return {}
+                return response.json()
 
-        except HTTPError as http_err:
-            logger.error(f"HTTP error occurred during query: {http_err}")
-            _raise_salesforce_error(http_err)
-        except Exception as err:
-            logger.error(f"Other error occurred during query: {err}")
-            raise
+            except HTTPError as http_err:
+                last_http_err = http_err
+                if attempt < len(_RATE_LIMIT_RETRY_DELAYS) and _is_rate_limited(
+                    http_err
+                ):
+                    time.sleep(_RATE_LIMIT_RETRY_DELAYS[attempt])
+                    continue
+                logger.error(f"HTTP error occurred during query: {http_err}")
+                _raise_salesforce_error(http_err)
+            except Exception as err:
+                logger.error(f"Other error occurred during query: {err}")
+                raise
+
+        if last_http_err is not None:
+            _raise_salesforce_error(last_http_err)
+        raise RuntimeError("request failed without HTTP error")

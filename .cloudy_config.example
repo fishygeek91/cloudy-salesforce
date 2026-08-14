@@ -19,6 +19,22 @@
           "password": "SF_PASSWORD",
           "security_token": "SF_SECURITY_TOKEN"
         }
+      },
+      "jwt": {
+        "type": "jwt",
+        "login_url": "https://login.salesforce.com",
+        "credentials": {
+          "client_id": "SF_CLIENT_ID",
+          "username": "SF_USERNAME",
+          "private_key": "SF_PRIVATE_KEY"
+        }
+      },
+      "session": {
+        "type": "session",
+        "credentials": {
+          "access_token": "SF_ACCESS_TOKEN",
+          "instance_url": "SF_INSTANCE_URL"
+        }
       }
     }
   },

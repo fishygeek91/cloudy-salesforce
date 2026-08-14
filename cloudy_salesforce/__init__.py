@@ -1,6 +1,11 @@
 """Typed Salesforce client with query, CRUD, and codegen."""
 
-from cloudy_salesforce.client import SalesforceClient, UsernamePasswordAuthentication
+from cloudy_salesforce.client import (
+    JwtBearerAuthentication,
+    SalesforceClient,
+    SessionAuthentication,
+    UsernamePasswordAuthentication,
+)
 from cloudy_salesforce.collections import DmlResult, delete, insert, update, upsert
 from cloudy_salesforce.exceptions import SalesforceError
 from cloudy_salesforce.query import query, soql_query
@@ -11,6 +16,8 @@ __version__ = "0.2.0"
 __all__ = [
     "SalesforceClient",
     "UsernamePasswordAuthentication",
+    "JwtBearerAuthentication",
+    "SessionAuthentication",
     "query",
     "soql_query",
     "insert",
