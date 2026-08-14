@@ -44,11 +44,11 @@ Requires Python 3.10+.
 
 ## Generate dataclasses
 
-There is no `init` command yet — set up config and credentials manually:
+```bash
+cloudy-salesforce init
+```
 
-1. Copy `.cloudy_config.example` to `.cloudy_config`.
-2. Create `.env` with `SF_USERNAME`, `SF_PASSWORD`, and `SF_SECURITY_TOKEN`.
-3. Run codegen against your org:
+Copy `.env.example` to `.env` and fill in `SF_USERNAME`, `SF_PASSWORD`, and `SF_SECURITY_TOKEN`, then run codegen against your org:
 
 ```bash
 cloudy-salesforce generate --alias prod
@@ -140,6 +140,12 @@ auth = UsernamePasswordAuthentication(
     security_token="your-token",
 )
 client = SalesforceClient(auth)
+```
+
+Or load credentials from `.cloudy_config` and environment variables:
+
+```python
+client = SalesforceClient.from_config(alias="prod")
 ```
 
 Sandbox:

@@ -1,10 +1,20 @@
 import importlib
 
 import pytest
+import requests
 
+from cloudy_salesforce.client.auth import BaseAuthentication
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
 
 sobject_mod = importlib.import_module("cloudy_salesforce.sobjects.sobject")
+
+
+class DummyAuth(BaseAuthentication):
+    def __init__(self):
+        super().__init__(requests.Session(), "https://example.my.salesforce.com")
+
+    def authenticate(self):
+        return self.session, self.instance_url
 
 
 @pytest.fixture(autouse=True)

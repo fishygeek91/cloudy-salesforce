@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hero README, CI badges, contributing guide, issue templates
 - Fixture-backed example generated sObjects under `examples/generated/`
 - mypy in CI; CLI logging for `cloudy-salesforce generate`
+- `SalesforceClient.from_config()` to build a client from `.cloudy_config` and env vars
+- `cloudy-salesforce init` to scaffold `.cloudy_config` and `.env.example`
+
+### Changed
+
+- `SalesforceClient` no longer becomes the default instance on construction; use `default=True` or `set_default_instance()`
+- Ignore local `.cloudy_config` so `init` output is not committed by accident
 
 ## [0.1.0] - 2026-08-14
 

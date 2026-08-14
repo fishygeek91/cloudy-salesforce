@@ -126,6 +126,7 @@ celerybeat.pid
 
 # Environments
 .env
+.cloudy_config
 .venv
 env/
 venv/

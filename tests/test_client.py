@@ -1,12 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-import requests
-
-from cloudy_salesforce.client.auth import (
-    BaseAuthentication,
-    UsernamePasswordAuthentication,
-)
+from cloudy_salesforce.client.auth import UsernamePasswordAuthentication
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
+from tests.conftest import DummyAuth
 
 SOAP_SUCCESS_XML = """<?xml version="1.0"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
@@ -20,14 +16,6 @@ SOAP_SUCCESS_XML = """<?xml version="1.0"?>
   </soapenv:Body>
 </soapenv:Envelope>
 """
-
-
-class DummyAuth(BaseAuthentication):
-    def __init__(self):
-        super().__init__(requests.Session(), "https://example.my.salesforce.com")
-
-    def authenticate(self):
-        return self.session, self.instance_url
 
 
 def test_request_empty_body_returns_empty_dict():
@@ -78,6 +66,28 @@ def test_authenticate_raises_when_soap_tags_missing():
             assert "sessionId" in str(exc)
         else:
             raise AssertionError("expected ValueError for missing SOAP tags")
+
+
+def test_constructing_client_does_not_set_default():
+    auth = DummyAuth()
+    SalesforceClient._default_instance = None
+    SalesforceClient(auth)
+    assert SalesforceClient._default_instance is None
+
+
+def test_constructing_client_with_default_true_sets_default():
+    auth = DummyAuth()
+    SalesforceClient._default_instance = None
+    client = SalesforceClient(auth, default=True)
+    assert SalesforceClient.get_default_instance() is client
+
+
+def test_set_default_instance_sets_default():
+    auth = DummyAuth()
+    SalesforceClient._default_instance = None
+    SalesforceClient.set_default_instance(auth)
+    assert isinstance(SalesforceClient.get_default_instance(), SalesforceClient)
+    assert SalesforceClient.get_default_instance().auth_strategy is auth
 
 
 def test_username_password_authenticate_escapes_xml_in_credentials():
