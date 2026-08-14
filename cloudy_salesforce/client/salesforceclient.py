@@ -5,6 +5,7 @@ import requests
 from requests.exceptions import HTTPError
 
 from .auth import BaseAuthentication
+from .config import build_auth_from_alias, load_cloudy_config, resolve_alias
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,8 @@ class SalesforceClient:
         self,
         auth_strategy: BaseAuthentication,
         api_version: str = DEFAULT_API_VERSION,
+        *,
+        default: bool = False,
     ):
         if not isinstance(auth_strategy, BaseAuthentication):
             raise TypeError(
@@ -25,7 +28,7 @@ class SalesforceClient:
         self.auth_strategy = auth_strategy
         self.api_version = api_version
 
-        if self._default_instance is None:
+        if default:
             self.__class__._default_instance = self
 
     @classmethod
@@ -40,7 +43,7 @@ class SalesforceClient:
         :param auth_strategy: An instance of a subclass of BaseAuthentication.
         :param api_version: Salesforce REST API version (e.g. "v61.0").
         """
-        cls._default_instance = cls(auth_strategy, api_version=api_version)
+        cls(auth_strategy, api_version=api_version, default=True)
 
     @classmethod
     def get_default_instance(cls):
@@ -53,6 +56,33 @@ class SalesforceClient:
         if cls._default_instance is None:
             raise ValueError("Default instance not set")
         return cls._default_instance
+
+    @classmethod
+    def from_config(
+        cls,
+        alias: str = "default",
+        path: str = ".cloudy_config",
+        *,
+        default: bool = False,
+        api_version: str | None = None,
+    ) -> "SalesforceClient":
+        config = load_cloudy_config(path)
+        alias_config = resolve_alias(config, alias)
+
+        effective_api_version = api_version
+        if effective_api_version is None:
+            effective_api_version = alias_config.get(
+                "api_version", cls.DEFAULT_API_VERSION
+            )
+
+        auth = build_auth_from_alias(
+            alias_config, api_version=effective_api_version
+        )
+        return cls(
+            auth,
+            api_version=effective_api_version,
+            default=default,
+        )
 
     def get_session(self) -> requests.Session:
         return self.auth_strategy.session

@@ -1,60 +1,18 @@
 import argparse
-import json
 import logging
-import os
+from pathlib import Path
 
-from dotenv import find_dotenv, load_dotenv
-
-from cloudy_salesforce.client import UsernamePasswordAuthentication
+from cloudy_salesforce.client.config import (
+    DEFAULT_CLOUDY_CONFIG_EXAMPLE,
+    DEFAULT_ENV_EXAMPLE,
+    build_auth_from_alias,
+    load_cloudy_config,
+    resolve_alias,
+)
 
 from .generator import SObjectGenerator
 
 logger = logging.getLogger(__name__)
-
-
-def _get_login_url(alias: dict) -> str:
-    if "login_url" in alias:
-        return alias["login_url"]
-    if alias.get("sandbox"):
-        return "https://test.salesforce.com"
-    return "https://login.salesforce.com"
-
-
-def _get_auth(alias: dict) -> UsernamePasswordAuthentication:
-    if alias["type"] == "basic":
-        load_dotenv(dotenv_path=find_dotenv(raise_error_if_not_found=True))
-        credentials = alias["credentials"]
-        username_var = credentials["username"]
-        password_var = credentials["password"]
-        token_var = credentials["security_token"]
-
-        username = os.getenv(username_var)
-        password = os.getenv(password_var)
-        security_token = os.environ.get(token_var)
-
-        for var_name, value in [
-            (username_var, username),
-            (password_var, password),
-            (token_var, security_token),
-        ]:
-            if value is None:
-                raise ValueError(f"Missing required environment variable: {var_name}")
-
-        assert username is not None
-        assert password is not None
-        assert security_token is not None
-
-        kwargs: dict[str, str] = {
-            "username": username,
-            "password": password,
-            "security_token": security_token,
-            "login_url": _get_login_url(alias),
-        }
-        if "api_version" in alias:
-            kwargs["api_version"] = alias["api_version"]
-        return UsernamePasswordAuthentication(**kwargs)
-
-    raise ValueError(f"Auth type not supported yet: {alias['type']}")
 
 
 def generate(args):
@@ -67,25 +25,41 @@ def generate(args):
         "Generating code with sobjects=%s and alias=%s", sobjects, alias_name
     )
 
-    try:
-        with open(".cloudy_config", "r") as file:
-            config = json.load(file)
-    except FileNotFoundError:
-        raise FileNotFoundError(".cloudy_config not found")
-
-    if not config or "auth" not in config:
-        raise ValueError("Invalid .cloudy_config: missing auth section")
-
-    auth_details = config["auth"]
-
-    if alias_name == "default":
-        alias_name = auth_details["default_alias"]
-
-    alias = auth_details["aliases"][alias_name]
-    auth = _get_auth(alias)
+    config = load_cloudy_config()
+    alias = resolve_alias(config, alias_name)
+    auth = build_auth_from_alias(alias)
 
     generator = SObjectGenerator(auth)
     generator.generate_all(sobjects)
+
+
+def init(args):
+    """
+    Handle the 'init' command.
+    """
+    force = args.force
+    config_path = Path(".cloudy_config")
+    env_example_path = Path(".env.example")
+
+    example_config_path = Path(".cloudy_config.example")
+    if example_config_path.is_file():
+        config_content = example_config_path.read_text(encoding="utf-8")
+    else:
+        config_content = DEFAULT_CLOUDY_CONFIG_EXAMPLE
+
+    if not config_path.exists() or force:
+        config_path.write_text(config_content, encoding="utf-8")
+        logger.info("Wrote %s", config_path)
+    else:
+        logger.info("%s already exists (use --force to overwrite)", config_path)
+
+    if not env_example_path.exists() or force:
+        env_example_path.write_text(DEFAULT_ENV_EXAMPLE, encoding="utf-8")
+        logger.info("Wrote %s", env_example_path)
+    else:
+        logger.info(
+            "%s already exists (use --force to overwrite)", env_example_path
+        )
 
 
 def main():
@@ -102,6 +76,16 @@ def main():
 
     subparsers = parser.add_subparsers(title="Commands", dest="command")
     subparsers.required = True
+
+    init_parser = subparsers.add_parser(
+        "init", help="Create .cloudy_config and .env.example starter files."
+    )
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing .cloudy_config and .env.example files.",
+    )
+    init_parser.set_defaults(func=init)
 
     generate_parser = subparsers.add_parser(
         "generate", help="Generate code based on provided options."
@@ -122,3 +106,7 @@ def main():
 
     args = parser.parse_args()
     args.func(args)
+
+
+if __name__ == "__main__":
+    main()
