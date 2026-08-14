@@ -65,16 +65,25 @@ Codegen writes dataclass modules to `./sobjects/` by default.
 
 ## Query
 
-Raw dict response (same shape as the REST API):
+Typed builder on generated dataclasses. `execute()` paginates automatically and returns `list[Account]`:
 
 ```python
-from cloudy_salesforce import query
+from sobjects import Account
 
-result = query("SELECT Id, Name, Industry FROM Account LIMIT 5", client=client)
-industry = result["records"][0]["Industry"]
+accounts = (
+    Account.select("Id", "Name", "Industry")
+    .where(Industry="Technology")
+    .order_by("Name")
+    .limit(10)
+    .execute(client=client)
+)
+account = accounts[0]
+account.Industry
 ```
 
-Typed response with a generated dataclass. Pagination is automatic, including nested subquery pages:
+Operators use a suffix: `Name__like="Acme%"`, `Industry__in=["Technology", "Finance"]`, `CreatedDate__gte=...`, `Id__null=False`. `select()` with no fields picks every scalar field (not child relationships). `to_soql()` renders the string without calling the API.
+
+Raw SOQL still works — use it for subqueries the builder does not cover yet:
 
 ```python
 from cloudy_salesforce import query
@@ -85,15 +94,21 @@ accounts = query(
     client=client,
     parse_as=Account,
 )
-account = accounts[0]
-account.Industry
+accounts[0].Opportunities[0].Name
+```
+
+Dict response (same shape as the REST API):
+
+```python
+result = query("SELECT Id, Name, Industry FROM Account LIMIT 5", client=client)
+industry = result["records"][0]["Industry"]
 ```
 
 Set a default client once from an auth strategy and omit `client=` on later calls:
 
 ```python
 SalesforceClient.set_default_instance(auth)
-accounts = query("SELECT Id FROM Account", parse_as=Account)
+accounts = Account.select("Id").execute()
 ```
 
 ## Insert, update, upsert, delete
@@ -204,10 +219,11 @@ client = SalesforceClient(auth)
 | | cloudy-salesforce | [simple-salesforce](https://github.com/simple-salesforce/simple-salesforce) | [aiosalesforce](https://github.com/georgebv/aiosalesforce) |
 |---|---|---|---|
 | Org-generated types | Yes — dataclasses from describe | No — dict responses | No — dict responses |
+| Typed SOQL builder | Yes — `Account.select().where()` | No | No |
 | Picklist `Literal` unions | Yes | No | No |
 | Nested subquery pagination | Automatic | Manual | Manual |
 | Composite CRUD (batch DML) | Yes | Partial | Partial |
 
 ## Status
 
-v0.2.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.
+v0.3.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.
