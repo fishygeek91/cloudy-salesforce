@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- JWT bearer and session-token authentication (`JwtBearerAuthentication`, `SessionAuthentication`) with `.cloudy_config` aliases
-- Optional rate-limit retries on HTTP 429 and `REQUEST_LIMIT_EXCEEDED` in `SalesforceClient.request`
-- GitHub Actions Trusted Publisher workflow to publish to PyPI on GitHub release
-
 ## [0.2.0] - 2026-08-14
 
 ### Added
@@ -25,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Typed `insert` / `update` / `upsert` / `delete` from `@sobject` dataclasses
 - `DmlResult` return type for composite DML
 - `SalesforceError` with `error_code` and `status_code` for REST failures
+- JWT bearer and session-token authentication (`JwtBearerAuthentication`, `SessionAuthentication`) with `.cloudy_config` aliases
+- Optional rate-limit retries on HTTP 429 and `REQUEST_LIMIT_EXCEEDED` in `SalesforceClient.request`
+- GitHub Actions Trusted Publisher workflow to publish to PyPI on GitHub release
 
 ### Changed
 
