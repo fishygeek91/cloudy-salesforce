@@ -1,5 +1,5 @@
 from functools import partial, wraps
-from typing import Any, Callable, Literal, TypedDict, TypeVar
+from typing import Any, Callable, Literal, TypedDict, TypeVar, cast
 
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
 
@@ -18,7 +18,9 @@ QueryEndpoints = Literal["query", "queryAll"]
 
 def soql_query(
     endpoint: QueryEndpoints = "query",
-    return_function: Callable[[dict[str, Any]], T] = response_json_only,
+    return_function: Callable[[dict[str, Any]], T] = cast(
+        Callable[[dict[str, Any]], T], response_json_only
+    ),
 ) -> Callable[[Callable[..., QueryProps]], Callable[..., T]]:
     def decorator(func: Callable[..., QueryProps]) -> Callable[..., T]:
         @wraps(func)

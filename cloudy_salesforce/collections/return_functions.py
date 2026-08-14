@@ -24,8 +24,8 @@ def records_and_response(
 def success_failure(
     records: List[Dict[str, Any]], results: List[Dict[str, Any]]
 ) -> Tuple[Dict, Dict]:
-    successes = {"count": 0, "results": []}
-    failures = {"count": 0, "results": []}
+    successes: Dict[str, Any] = {"count": 0, "results": []}
+    failures: Dict[str, Any] = {"count": 0, "results": []}
     for record, response in zip(records, results):
         record_result = {"record": record, "response": response}
         if not response["success"]:
