@@ -15,6 +15,39 @@ def _generator_instance() -> SObjectGenerator:
     return SObjectGenerator.__new__(SObjectGenerator)
 
 
+def test_get_objects_splits_comma_separated_names(monkeypatch):
+    gen = _generator_instance()
+    captured = {}
+
+    def fake_describe(name):
+        captured.setdefault("names", []).append(name)
+        return {
+            "fields": [{"name": "Id", "type": "id"}],
+            "childRelationships": [],
+        }
+
+    gen.sf_client = object()
+    monkeypatch.setattr(
+        "cloudy_salesforce.generator.generator.SObjects",
+        lambda sf_client=None: type(
+            "FakeSObjects",
+            (),
+            {
+                "describe_sobject": staticmethod(fake_describe),
+                "get_object_fields": staticmethod(lambda resp: resp["fields"]),
+                "get_object_lookups": staticmethod(lambda resp: []),
+                "get_object_child_relations": staticmethod(
+                    lambda resp: resp["childRelationships"]
+                ),
+            },
+        )(),
+    )
+
+    objects = gen.get_objects("Account, Contact")
+    assert [obj["class_name"] for obj in objects] == ["Account", "Contact"]
+    assert captured["names"] == ["Account", "Contact"]
+
+
 def test_parse_type_picklist_sanitization():
     assert parse_type("2FA__c", "picklist") == "F2FACPICKLIST"
     assert parse_type("Industry", "picklist") == "INDUSTRYPICKLIST"

@@ -39,7 +39,7 @@ def soql_query(
             }
 
             def query_all(url, params, results):
-                while not results["done"] and url is not None:
+                while not results["done"] and url:
                     query_response = crud_function(url=url, body=None, params=params)
                     if not isinstance(query_response, dict):
                         raise ValueError(

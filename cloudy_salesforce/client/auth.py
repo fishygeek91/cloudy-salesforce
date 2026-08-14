@@ -79,18 +79,18 @@ class UsernamePasswordAuthentication(BaseAuthentication):
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def _extract_access_token(self, response_content: str) -> str:
-        start_tag = "<sessionId>"
-        end_tag = "</sessionId>"
-        start_index = response_content.find(start_tag) + len(start_tag)
+    def _extract_tag(self, response_content: str, tag: str) -> str:
+        start_tag = f"<{tag}>"
+        end_tag = f"</{tag}>"
+        start_index = response_content.find(start_tag)
         end_index = response_content.find(end_tag)
-        return response_content[start_index:end_index]
+        if start_index == -1 or end_index == -1:
+            raise ValueError(f"SOAP response missing <{tag}>")
+        return response_content[start_index + len(start_tag) : end_index]
+
+    def _extract_access_token(self, response_content: str) -> str:
+        return self._extract_tag(response_content, "sessionId")
 
     def _extract_instance_url(self, response_content: str) -> str:
-        start_tag = "<serverUrl>"
-        end_tag = "</serverUrl>"
-        start_index = response_content.find(start_tag) + len(start_tag)
-        end_index = response_content.find(end_tag)
-        server_url = response_content[start_index:end_index]
-        instance_url = server_url.split("/services")[0]
-        return instance_url
+        server_url = self._extract_tag(response_content, "serverUrl")
+        return server_url.split("/services")[0]

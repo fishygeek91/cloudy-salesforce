@@ -49,6 +49,37 @@ def test_api_version_stored_on_client():
     assert client.api_version == "v59.0"
 
 
+def test_request_keeps_absolute_url():
+    auth = DummyAuth()
+    client = SalesforceClient(auth)
+    mock_response = MagicMock()
+    mock_response.content = b"{}"
+    mock_response.json.return_value = {}
+    mock_response.raise_for_status = MagicMock()
+    auth.session.request = MagicMock(return_value=mock_response)
+
+    client.request("GET", "https://na1.salesforce.com/services/data/v61.0/query/next")
+
+    assert (
+        auth.session.request.call_args.args[1]
+        == "https://na1.salesforce.com/services/data/v61.0/query/next"
+    )
+
+
+def test_authenticate_raises_when_soap_tags_missing():
+    mock_response = MagicMock()
+    mock_response.content = b"<loginResponse>no tokens here</loginResponse>"
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("requests.Session.post", return_value=mock_response):
+        try:
+            UsernamePasswordAuthentication("user", "pass", "token")
+        except ValueError as exc:
+            assert "sessionId" in str(exc)
+        else:
+            raise AssertionError("expected ValueError for missing SOAP tags")
+
+
 def test_username_password_authenticate_escapes_xml_in_credentials():
     mock_response = MagicMock()
     mock_response.content = SOAP_SUCCESS_XML.encode("utf-8")

@@ -1,4 +1,5 @@
 import logging
+import sys
 import types
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
@@ -41,7 +42,13 @@ def parse_sobject_response(sobject: type[T], response: dict) -> list[T]:
 
 def parse_record(sobject: type[T], record: dict) -> T:
     """Parse a single Salesforce record dict into an sObject instance."""
-    hints = get_type_hints(sobject, localns=_SObjectRegistry)
+    module = sys.modules.get(sobject.__module__)
+    module_ns = getattr(module, "__dict__", {})
+    hints = get_type_hints(
+        sobject,
+        globalns=module_ns,
+        localns={**module_ns, **_SObjectRegistry},
+    )
     instance = sobject()
     for key, value in record.items():
         if key == "attributes":
@@ -106,7 +113,7 @@ class SObjects:
         url = f"/services/data/{version}/sobjects/{sobject}/describe/"
         response = self.sf_client.request("GET", url)
         if not isinstance(response, dict):
-            raise Exception(f"Error with describe_sobject: {response}")
+            raise ValueError(f"describe_sobject expected a dict, got: {response}")
         return response
 
     def get_object_fields(self, object_resp: dict) -> list[dict]:

@@ -67,7 +67,10 @@ class SalesforceClient:
         body: dict | None = None,
         params: dict | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]]:
-        request_url = f"{self.get_instance_url()}{url}"
+        if url.startswith("http://") or url.startswith("https://"):
+            request_url = url
+        else:
+            request_url = f"{self.get_instance_url()}{url}"
         try:
             response = self.get_session().request(
                 method, request_url, json=body, params=params, timeout=30

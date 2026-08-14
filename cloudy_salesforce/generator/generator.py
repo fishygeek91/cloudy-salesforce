@@ -60,7 +60,9 @@ class SObjectGenerator:
                 )
 
         if isinstance(object_names, str):
-            object_names = [object_names]
+            object_names = [
+                name.strip() for name in object_names.split(",") if name.strip()
+            ]
 
         generated_set = set(object_names)
         sobject_client = SObjects(sf_client=self.sf_client)
