@@ -1,5 +1,11 @@
+import logging
 from abc import ABC, abstractmethod
+from xml.sax.saxutils import escape
+
 import requests
+from requests.exceptions import HTTPError
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAuthentication(ABC):
@@ -12,46 +18,51 @@ class BaseAuthentication(ABC):
         pass
 
     @staticmethod
-    def get_headers(access_token) -> dict[str, str]:
+    def get_headers(access_token: str) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
 
 
-import logging
-from requests.exceptions import HTTPError
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
 class UsernamePasswordAuthentication(BaseAuthentication):
-    def __init__(self, username, password, security_token):
-
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        security_token: str,
+        login_url: str = "https://login.salesforce.com",
+        api_version: str = "v61.0",
+    ):
         self.username = username
         self.password = password
         self.security_token = security_token
+        self.login_url = login_url
+        self.api_version = api_version
         session, instance_url = self.authenticate()
         super().__init__(session, instance_url)
 
-    def authenticate(self):
+    def authenticate(self) -> tuple[requests.Session, str]:
         session = requests.Session()
-        auth_url = "https://login.salesforce.com/services/Soap/u/52.0"
+        soap_version = self.api_version.removeprefix("v")
+        auth_url = f"{self.login_url}/services/Soap/u/{soap_version}"
         headers = {"Content-Type": "text/xml", "SOAPAction": "login"}
+        escaped_username = escape(self.username)
+        escaped_password = escape(f"{self.password}{self.security_token}")
         soap_body = f"""
         <env:Envelope xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:env="http://schemas.xmlsoap.org/soap/envelope/">
             <env:Body>
                 <n1:login xmlns:n1="urn:partner.soap.sforce.com">
-                    <n1:username>{self.username}</n1:username>
-                    <n1:password>{self.password}{self.security_token}</n1:password>
+                    <n1:username>{escaped_username}</n1:username>
+                    <n1:password>{escaped_password}</n1:password>
                 </n1:login>
             </env:Body>
         </env:Envelope>
         """
         try:
-            response = session.post(auth_url, headers=headers, data=soap_body)
+            response = session.post(
+                auth_url, headers=headers, data=soap_body, timeout=30
+            )
             response.raise_for_status()
             response_content = response.content.decode("utf-8")
             if "faultstring" in response_content:
@@ -68,18 +79,18 @@ class UsernamePasswordAuthentication(BaseAuthentication):
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def _extract_access_token(self, response_content):
-        start_tag = "<sessionId>"
-        end_tag = "</sessionId>"
-        start_index = response_content.find(start_tag) + len(start_tag)
+    def _extract_tag(self, response_content: str, tag: str) -> str:
+        start_tag = f"<{tag}>"
+        end_tag = f"</{tag}>"
+        start_index = response_content.find(start_tag)
         end_index = response_content.find(end_tag)
-        return response_content[start_index:end_index]
+        if start_index == -1 or end_index == -1:
+            raise ValueError(f"SOAP response missing <{tag}>")
+        return response_content[start_index + len(start_tag) : end_index]
 
-    def _extract_instance_url(self, response_content):
-        start_tag = "<serverUrl>"
-        end_tag = "</serverUrl>"
-        start_index = response_content.find(start_tag) + len(start_tag)
-        end_index = response_content.find(end_tag)
-        server_url = response_content[start_index:end_index]
-        instance_url = server_url.split("/services")[0]
-        return instance_url
+    def _extract_access_token(self, response_content: str) -> str:
+        return self._extract_tag(response_content, "sessionId")
+
+    def _extract_instance_url(self, response_content: str) -> str:
+        server_url = self._extract_tag(response_content, "serverUrl")
+        return server_url.split("/services")[0]

@@ -1,11 +1,24 @@
-from typing import TypedDict, Literal
+from __future__ import annotations
 
-{% for field_type, picklist in picklist_fields %}
-{{ field_type }} = Literal["{{ picklist|join('", "') }}"]
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from cloudy_salesforce.sobjects import sobject
+{%- if related_imports %}
+
+if TYPE_CHECKING:
+{%- for imp in related_imports %}
+    from .{{ imp }} import {{ imp }}
+{%- endfor %}
+{%- endif %}
+{%- for field_type, picklist in picklist_fields %}
+
+{{ field_type }} = Literal[{{ picklist|join(', ') }}] | str
 {%- endfor %}
 
-
-class {{ sobject }}(TypedDict, total=False):
+@sobject()
+@dataclass
+class {{ sobject }}:
 {%- for field_name, field_type in fields %}
-    {{ field_name }}: {{ field_type }} | None
+    {{ field_name }}: {{ field_type }} | None = None
 {%- endfor %}

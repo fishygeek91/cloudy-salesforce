@@ -1,31 +1,18 @@
-from enum import Enum
 from functools import partial, wraps
-import json
-import logging
 from typing import (
     Any,
     Callable,
     Dict,
-    Generic,
     List,
+    Literal,
     Optional,
     Tuple,
-    TypeVar,
     TypedDict,
-    Literal,
+    TypeVar,
 )
 
-from requests import HTTPError
-
-from .return_functions import records_and_response, response_json_only
-
-# Assuming SalesforceClient is imported correctly
 from ..client import SalesforceClient
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+from .return_functions import dml_results_only, records_and_response
 
 T = TypeVar("T")
 
@@ -68,7 +55,7 @@ def collections(
     operation: CRUDLiteral,
     return_function: Callable[
         [List[Dict[str, Any]], List[Dict[str, Any]]], T
-    ] = response_json_only,
+    ] = dml_results_only,
 ) -> Callable[[Callable[..., CRUDProps]], Callable[..., T]]:
     def decorator(func: Callable[..., CRUDProps]) -> Callable[..., T]:
         @wraps(func)
@@ -81,7 +68,6 @@ def collections(
 
             results: List[Dict[str, Any]] = []
 
-            # batch records
             for records in batch_records(records_to_process, props["batch_size"]):
                 url, body, params = build_payload(
                     operation, {**props, "records": records}
@@ -180,18 +166,16 @@ def delete(
     }
 
 
-# a function that batches a list of records into chunks of size batch_size
 def batch_records(records: List[dict], batch_size: int) -> List[List[dict]]:
     return [records[i : i + batch_size] for i in range(0, len(records), batch_size)]
 
 
 def add_attributes(records: List[dict], object_type: str) -> List[dict]:
-    for record in records:
-        record["attributes"] = {"type": object_type}
-    return records
+    return [
+        {**record, "attributes": {"type": object_type}} for record in records
+    ]
 
 
-# Case insensitive function to get id's from records
 def get_id_list(records: List[dict]) -> List[str]:
     ids = []
     for record in records:
@@ -210,11 +194,16 @@ def build_payload(
 ) -> Tuple[str, dict | None, dict | None]:
     records = props["records"]
     all_or_none = props["all_or_none"]
+    client = props["client"]
+    api_version = getattr(client, "api_version", SalesforceClient.DEFAULT_API_VERSION)
 
     if operation == "delete":
-        params = {"ids": ",".join(get_id_list(records)), "allOrNone": all_or_none}
+        params = {
+            "ids": ",".join(get_id_list(records)),
+            "allOrNone": str(all_or_none).lower(),
+        }
         return (
-            f"/services/data/v61.0/composite/sobjects?ids={','.join(get_id_list(records))}&allOrNone={all_or_none}",
+            f"/services/data/{api_version}/composite/sobjects",
             None,
             params,
         )
@@ -228,9 +217,9 @@ def build_payload(
         else:
             external_id = "Id"
         return (
-            f"/services/data/v61.0/composite/sobjects/{object_type}/{external_id}",
+            f"/services/data/{api_version}/composite/sobjects/{object_type}/{external_id}",
             body,
             None,
         )
 
-    return f"/services/data/v60.0/composite/sobjects/", body, None
+    return f"/services/data/{api_version}/composite/sobjects/", body, None

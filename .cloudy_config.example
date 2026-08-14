@@ -1,0 +1,26 @@
+{
+  "auth": {
+    "default_alias": "prod",
+    "aliases": {
+      "prod": {
+        "type": "basic",
+        "login_url": "https://login.salesforce.com",
+        "credentials": {
+          "username": "SF_USERNAME",
+          "password": "SF_PASSWORD",
+          "security_token": "SF_SECURITY_TOKEN"
+        }
+      },
+      "sandbox": {
+        "type": "basic",
+        "sandbox": true,
+        "credentials": {
+          "username": "SF_USERNAME",
+          "password": "SF_PASSWORD",
+          "security_token": "SF_SECURITY_TOKEN"
+        }
+      }
+    }
+  },
+  "sobjects": ["Account", "Contact", "Opportunity"]
+}
