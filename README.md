@@ -153,10 +153,37 @@ auth = UsernamePasswordAuthentication(
 client = SalesforceClient(auth)
 ```
 
+JWT bearer flow (Connected App with certificate):
+
+```python
+from cloudy_salesforce import JwtBearerAuthentication, SalesforceClient
+
+auth = JwtBearerAuthentication(
+    client_id="your-connected-app-consumer-key",
+    username="you@example.com",
+    private_key_path="/path/to/private.pem",
+)
+client = SalesforceClient(auth)
+```
+
+Existing access token (no login call):
+
+```python
+from cloudy_salesforce import SalesforceClient, SessionAuthentication
+
+auth = SessionAuthentication(
+    access_token="00D...",
+    instance_url="https://your-instance.my.salesforce.com",
+)
+client = SalesforceClient(auth)
+```
+
 Or load credentials from `.cloudy_config` and environment variables:
 
 ```python
 client = SalesforceClient.from_config(alias="prod")
+client = SalesforceClient.from_config(alias="jwt")
+client = SalesforceClient.from_config(alias="session")
 ```
 
 Sandbox:
