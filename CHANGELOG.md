@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Typed DML omits `None` on pre-UNSET generated classes and never sends relationship fields as JSON null
+- `serialize_record` does not raise `NameError` when a legacy generated module is imported without its related siblings
 - `UNSET` is a copy/pickle-safe falsy singleton
 - `SalesforceClient.request` rebuilds the URL after re-auth so a new instance URL is used
 - Generated runtime imports include `# noqa: E402`

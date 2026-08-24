@@ -46,10 +46,30 @@ def _annotation_includes_unset(annotation: object) -> bool:
     """True when a field annotation includes ``UnsetType`` (UNSET-aware classes)."""
     if annotation is UnsetType:
         return True
+    if isinstance(annotation, str):
+        parts = [part.strip() for part in annotation.split("|")]
+        return "UnsetType" in parts
     origin = get_origin(annotation)
     if origin is Union or origin is types.UnionType:
         return any(_annotation_includes_unset(arg) for arg in get_args(annotation))
     return False
+
+
+def _record_field_hints(record_type: type) -> dict[str, object]:
+    """Return type hints for serialization, falling back if siblings are unresolved.
+
+    Pre-UNSET generated modules import related types under ``TYPE_CHECKING`` only.
+    Importing one module standalone then leaves forward refs that ``get_type_hints``
+    cannot resolve. Raw ``__annotations__`` still contain ``UnsetType`` and
+    relationship names as strings, which is enough for DML omit/null decisions.
+    """
+    from cloudy_salesforce.sobjects.sobject import get_sobject_type_hints
+
+    try:
+        return get_sobject_type_hints(record_type)
+    except NameError:
+        raw = getattr(record_type, "__annotations__", {})
+        return dict(raw)
 
 
 def serialize_record(record: Any) -> dict[str, Any]:
@@ -63,9 +83,8 @@ def serialize_record(record: Any) -> dict[str, Any]:
     if not is_sobject_instance(record):
         raise TypeError(f"Expected sObject instance, got {type(record).__name__}")
     from cloudy_salesforce.query.builder import _is_relationship_annotation
-    from cloudy_salesforce.sobjects.sobject import get_sobject_type_hints
 
-    hints = get_sobject_type_hints(type(record))
+    hints = _record_field_hints(type(record))
     result: dict[str, Any] = {}
     for field in dataclasses.fields(record):
         value = getattr(record, field.name)

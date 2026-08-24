@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import importlib
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
@@ -270,6 +272,44 @@ def test_serialize_pre_unset_dataclass_omits_none():
     serialized = serialize_record(OldAccount(Id="001", Name="x"))
     assert serialized == {"Id": "001", "Name": "x"}
     assert "Industry" not in serialized
+
+
+def test_serialize_legacy_unresolved_sibling_does_not_raise(tmp_path):
+    """Pre-UNSET codegen imported TYPE_CHECKING siblings only.
+
+    Importing one module standalone leaves an unresolvable forward ref.
+    serialize_record must still omit None instead of raising NameError.
+    """
+    pkg_dir = tmp_path / "legacy_sobjects"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "Legacy.py").write_text(
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n"
+        "from typing import TYPE_CHECKING\n"
+        "from cloudy_salesforce.sobjects import sobject\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    from .Missing import Missing\n"
+        "\n"
+        "@sobject()\n"
+        "@dataclass\n"
+        "class Legacy:\n"
+        "    Id: str | None = None\n"
+        "    Name: str | None = None\n"
+        "    Related: Missing | None = None\n"
+    )
+    sys.path.insert(0, str(tmp_path))
+    try:
+        mod = importlib.import_module("legacy_sobjects.Legacy")
+        serialized = serialize_record(mod.Legacy(Id="1", Name="n"))
+        assert serialized == {"Id": "1", "Name": "n"}
+        assert "Related" not in serialized
+    finally:
+        sys.path.remove(str(tmp_path))
+        for name in list(sys.modules):
+            if name == "legacy_sobjects" or name.startswith("legacy_sobjects."):
+                del sys.modules[name]
 
 
 def test_serialize_skips_none_relationship():
