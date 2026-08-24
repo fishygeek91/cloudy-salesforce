@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Schema Sentinel: `cloudy-salesforce snapshot` and `cloudy-salesforce diff` — capture a typed projection of org describes and diff two snapshots (or a snapshot vs the live org). Pure `diff_snapshots()` with no Salesforce I/O; exit code 1 on drift for CI; `--json` and `--format slack` outputs; `--all-custom` via `describe_global()`; offline fixtures in `examples/snapshots/`
+- `cloudy_salesforce/sentinel/` package: `Snapshot`/`FieldSnapshot` TypedDicts, `Change` dataclass, snapshot projection and stable JSON writer
+
+### Changed
+
+- Console script now points at `cloudy_salesforce.cli:main`, a thin dispatcher that adds `snapshot`/`diff` while preserving `init`/`generate` unchanged (`generator.cli:main` remains for back-compat)
+
 ## [0.4.0] - 2026-08-24
 
 ### Added
