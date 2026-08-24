@@ -36,7 +36,7 @@ dev = [
 ]
 
 [project.scripts]
-cloudy-salesforce = "cloudy_salesforce.generator.cli:main"
+cloudy-salesforce = "cloudy_salesforce.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/fishygeek91/cloudy-salesforce"

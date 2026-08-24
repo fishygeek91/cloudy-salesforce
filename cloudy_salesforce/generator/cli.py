@@ -60,21 +60,8 @@ def init(args):
         )
 
 
-def main():
-    if not logging.root.handlers:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(levelname)s %(name)s: %(message)s",
-        )
-
-    parser = argparse.ArgumentParser(
-        description="Generate typed Salesforce sObject dataclasses from org metadata.",
-        usage="%(prog)s [command] [options]",
-    )
-
-    subparsers = parser.add_subparsers(title="Commands", dest="command")
-    subparsers.required = True
-
+def add_init_parser(subparsers) -> None:
+    """Register the ``init`` subcommand on an argparse subparsers object."""
     init_parser = subparsers.add_parser(
         "init", help="Create .cloudy_config and .env.example starter files."
     )
@@ -85,6 +72,9 @@ def main():
     )
     init_parser.set_defaults(func=init)
 
+
+def add_generate_parser(subparsers) -> None:
+    """Register the ``generate`` subcommand on an argparse subparsers object."""
     generate_parser = subparsers.add_parser(
         "generate", help="Generate code based on provided options."
     )
@@ -111,6 +101,30 @@ def main():
         help="Override REST API version (e.g. v62.0).",
     )
     generate_parser.set_defaults(func=generate)
+
+
+def main():
+    """Back-compat entry point: init / generate only.
+
+    The published console script is ``cloudy_salesforce.cli:main``, which adds
+    ``snapshot`` and ``diff`` on top of these two subcommands.
+    """
+    if not logging.root.handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s %(name)s: %(message)s",
+        )
+
+    parser = argparse.ArgumentParser(
+        description="Generate typed Salesforce sObject dataclasses from org metadata.",
+        usage="%(prog)s [command] [options]",
+    )
+
+    subparsers = parser.add_subparsers(title="Commands", dest="command")
+    subparsers.required = True
+
+    add_init_parser(subparsers)
+    add_generate_parser(subparsers)
 
     args = parser.parse_args()
     args.func(args)
