@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 from pathlib import Path
 
 from cloudy_salesforce.client import SalesforceClient
+from cloudy_salesforce.exceptions import SalesforceError
 from cloudy_salesforce.sobjects import SObjects
 
 from .types import (
@@ -15,6 +17,8 @@ from .types import (
     Snapshot,
     SObjectSnapshot,
 )
+
+logger = logging.getLogger(__name__)
 
 #: Standard objects included by ``--all-custom`` alongside every ``__c`` object.
 STANDARD_ALLOWLIST: tuple[str, ...] = (
@@ -156,17 +160,42 @@ def _get_org_id(client: SalesforceClient) -> str:
     return ""
 
 
+def _is_not_found(error: SalesforceError) -> bool:
+    return error.status_code == 404 or error.error_code in (
+        "NOT_FOUND",
+        "INVALID_TYPE",
+    )
+
+
 def build_snapshot(
     client: SalesforceClient,
     sobject_names: list[str],
     *,
     alias: str,
+    missing_ok: bool = False,
 ) -> Snapshot:
-    """Describe each sObject and assemble the snapshot document."""
+    """Describe each sObject and assemble the snapshot document.
+
+    With ``missing_ok`` (the live-diff and config-list paths), an sObject the
+    org no longer has — or the running user cannot see — is omitted from the
+    snapshot so ``diff_snapshots`` reports it as ``sobject_removed`` instead of
+    aborting the run. Without it (explicit ``--sobjects``), an unknown name
+    fails fast so typos surface immediately.
+    """
     sobjects_client = SObjects(sf_client=client)
     projected: dict[str, SObjectSnapshot] = {}
     for name in sorted(set(sobject_names)):
-        describe = sobjects_client.describe_sobject(name)
+        try:
+            describe = sobjects_client.describe_sobject(name)
+        except SalesforceError as error:
+            if missing_ok and _is_not_found(error):
+                logger.warning(
+                    "sObject %s not describable (%s); treating as absent",
+                    name,
+                    error.error_code or error.status_code,
+                )
+                continue
+            raise
         projected[name] = project_describe(describe)
 
     captured_at = datetime.datetime.now(datetime.timezone.utc).isoformat(
