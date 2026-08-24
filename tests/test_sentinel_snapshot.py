@@ -182,3 +182,40 @@ def test_resolve_sobject_names_missing_config_raises(tmp_path):
             all_custom=False,
             config_path=str(tmp_path / "missing"),
         )
+
+
+def _not_found_client() -> MagicMock:
+    from cloudy_salesforce.exceptions import SalesforceError
+
+    client = MagicMock()
+    client.api_version = "v61.0"
+
+    def request(method: str, url: str, body=None, params=None):
+        if "/sobjects/Gone__c/" in url:
+            raise SalesforceError(
+                "The requested resource does not exist",
+                status_code=404,
+                error_code="NOT_FOUND",
+            )
+        if url.endswith("/describe/"):
+            return DESCRIBE_ACCOUNT
+        if url.endswith("/query"):
+            return {"records": [{"Id": "00D000000000001EXAMPLE"}], "done": True}
+        raise AssertionError(f"unexpected url: {url}")
+
+    client.request.side_effect = request
+    return client
+
+
+def test_build_snapshot_missing_ok_omits_deleted_sobject():
+    snapshot = build_snapshot(
+        _not_found_client(), ["Account", "Gone__c"], alias="prod", missing_ok=True
+    )
+    assert set(snapshot["sobjects"]) == {"Account"}
+
+
+def test_build_snapshot_fails_fast_without_missing_ok():
+    from cloudy_salesforce.exceptions import SalesforceError
+
+    with pytest.raises(SalesforceError):
+        build_snapshot(_not_found_client(), ["Account", "Gone__c"], alias="prod")

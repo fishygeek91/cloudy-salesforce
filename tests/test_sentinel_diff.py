@@ -112,3 +112,25 @@ def test_format_slack_lists_changes():
     block = format_slack(changes)
     assert block.startswith("*4 Salesforce schema change(s) detected:*")
     assert "• Opportunity.NextStep: length 255 → 80" in block
+
+
+def test_diff_unique_reference_and_restricted_changes():
+    old = _load("base.json")
+    new = copy.deepcopy(old)
+    account_fields = new["sobjects"]["Account"]["fields"]
+    account_fields["Name"]["unique"] = True
+    account_fields["Industry"]["restrictedPicklist"] = True
+    account_fields["OwnerRef"] = {"type": "reference", "referenceTo": ["User"]}
+    old["sobjects"]["Account"]["fields"]["OwnerRef"] = {
+        "type": "reference",
+        "referenceTo": ["Group", "User"],
+    }
+    changes = diff_snapshots(old, new)
+    by_kind = {c.kind: c for c in changes}
+    assert by_kind["unique_changed"].field == "Name"
+    assert by_kind["restricted_picklist_changed"].field == "Industry"
+    assert "picklist now restricted" in by_kind["restricted_picklist_changed"].summary
+    ref = by_kind["reference_to_changed"]
+    assert ref.field == "OwnerRef"
+    assert ref.before == ["Group", "User"]
+    assert ref.after == ["User"]
