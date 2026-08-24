@@ -239,4 +239,4 @@ client = SalesforceClient(auth)
 
 ## Status
 
-v0.3.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.
+v0.4.0 · Python 3.10+ · [MIT License](LICENSE) · Not affiliated with Salesforce, Inc.
