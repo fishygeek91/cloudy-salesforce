@@ -87,6 +87,55 @@ def _field_changes(
             )
         )
 
+    old_unique = before.get("unique")
+    new_unique = after.get("unique")
+    if old_unique != new_unique:
+        changes.append(
+            Change(
+                kind="unique_changed",
+                sobject=sobject,
+                field=name,
+                before=old_unique,
+                after=new_unique,
+                summary=f"{prefix}: unique {old_unique} → {new_unique}",
+            )
+        )
+
+    old_refs = before.get("referenceTo")
+    new_refs = after.get("referenceTo")
+    if old_refs != new_refs:
+        changes.append(
+            Change(
+                kind="reference_to_changed",
+                sobject=sobject,
+                field=name,
+                before=old_refs,
+                after=new_refs,
+                summary=(
+                    f"{prefix}: lookup target {old_refs or []} → {new_refs or []}"
+                ),
+            )
+        )
+
+    old_restricted = before.get("restrictedPicklist")
+    new_restricted = after.get("restrictedPicklist")
+    if old_restricted != new_restricted:
+        word = (
+            "picklist now restricted"
+            if new_restricted
+            else "picklist no longer restricted"
+        )
+        changes.append(
+            Change(
+                kind="restricted_picklist_changed",
+                sobject=sobject,
+                field=name,
+                before=old_restricted,
+                after=new_restricted,
+                summary=f"{prefix}: {word}",
+            )
+        )
+
     old_values = before.get("picklistValues")
     new_values = after.get("picklistValues")
     if old_values is not None or new_values is not None:
