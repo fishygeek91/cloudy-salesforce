@@ -1,0 +1,85 @@
+{
+  "alias": "prod",
+  "api_version": "v61.0",
+  "captured_at": "2026-08-24T18:00:00+00:00",
+  "org_id": "00D000000000001EXAMPLE",
+  "schema_sentinel": 1,
+  "sobjects": {
+    "Account": {
+      "childRelationships": {
+        "Opportunities": "Opportunity"
+      },
+      "custom": false,
+      "fields": {
+        "Id": {
+          "custom": false,
+          "label": "Account ID",
+          "length": 18,
+          "nillable": false,
+          "type": "id",
+          "unique": false,
+          "updateable": false
+        },
+        "Industry": {
+          "custom": false,
+          "label": "Industry",
+          "length": 40,
+          "nillable": true,
+          "picklistValues": [
+            "Agriculture",
+            "Technology"
+          ],
+          "restrictedPicklist": false,
+          "type": "picklist",
+          "unique": false,
+          "updateable": true
+        },
+        "Name": {
+          "custom": false,
+          "label": "Account Name",
+          "length": 255,
+          "nillable": false,
+          "type": "string",
+          "unique": false,
+          "updateable": true
+        }
+      },
+      "label": "Account"
+    },
+    "Opportunity": {
+      "childRelationships": {},
+      "custom": false,
+      "fields": {
+        "Amount": {
+          "custom": false,
+          "label": "Amount",
+          "nillable": true,
+          "precision": 18,
+          "scale": 2,
+          "type": "double",
+          "unique": false,
+          "updateable": true
+        },
+        "Id": {
+          "custom": false,
+          "label": "Opportunity ID",
+          "length": 18,
+          "nillable": false,
+          "type": "id",
+          "unique": false,
+          "updateable": false
+        },
+        "NextStep": {
+          "custom": false,
+          "label": "Next Step",
+          "length": 80,
+          "nillable": true,
+          "type": "string",
+          "unique": false,
+          "updateable": true
+        }
+      },
+      "label": "Opportunity"
+    }
+  }
+}

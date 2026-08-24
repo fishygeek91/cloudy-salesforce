@@ -119,6 +119,58 @@ SalesforceClient.set_default_instance(auth)
 accounts = Account.select("Id").execute()
 ```
 
+## Schema snapshots and diffs
+
+Capture your org's schema and diff it later — catch the picklist rename or field
+deletion that silently breaks an integration. Works offline for the diff; try it
+right now with the bundled fixtures (no org needed):
+
+```bash
+cloudy-salesforce diff examples/snapshots/base.json examples/snapshots/drifted.json
+```
+
+```
+Account.Industry: picklist value "Banking" removed
+Opportunity.Amount: type currency → double
+Opportunity.NextStep: length 255 → 80
+Opportunity.Tracking_Code__c: field removed
+```
+
+Exit code is `0` when the snapshots match and `1` when anything changed, so a
+scheduled CI job can fail the pipeline on drift. `--json` prints the machine
+change set; `--format slack` prints a paste-ready text block.
+
+Snapshot a live org (uses the same `.cloudy_config` aliases as `generate`;
+defaults to the config `sobjects` list — never every standard object):
+
+```bash
+cloudy-salesforce snapshot --alias prod --out snapshots/prod.json
+cloudy-salesforce snapshot --alias prod --sobjects Account,Opportunity --out snapshots/prod.json
+cloudy-salesforce snapshot --alias prod --all-custom   # every __c + common standard objects
+```
+
+Diff a saved snapshot against the live org (snapshots first, then diffs):
+
+```bash
+cloudy-salesforce diff snapshots/prod.json --alias prod --out snapshots/prod.json
+```
+
+Snapshots are stable JSON (UTF-8, sorted keys, indent 2) so they diff cleanly in
+git. The projection keeps what breaks integrations — type, nillable, length,
+precision/scale, updateable, active picklist values, `referenceTo`, child
+relationship names — not the multi-megabyte raw describe. Detected change kinds:
+sObject added/removed, field added/removed, type, nillable, length,
+precision/scale, updateable, unique, lookup target (`referenceTo`), restricted
+picklist, picklist values added/removed (no rename guessing — a rename shows as
+removed + added), and child relationship changes.
+
+Live `diff --alias` describes exactly the sObjects in the baseline (at the
+baseline's API version unless you pass `--api-version`), so a deleted object
+shows up as `sObject removed` rather than a describe error, and config changes
+never masquerade as schema drift. With `--out` pointing at the baseline file,
+the fresh snapshot is only written when the diff is clean — a drifted baseline
+is never silently replaced.
+
 ## Insert, update, upsert, delete
 
 Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`. Generated fields default to `UNSET` and are omitted from DML payloads; explicit `None` is sent as JSON null (clears the field on update/upsert) when the class uses `UnsetType` in its annotations. Dataclasses generated before UNSET still omit `None`, so upgrading the package without regenerating cannot wipe fields. Nested relationship objects — including `None` lookups — are omitted (the composite API rejects `"Account": null`). After `parse_record` / query, fields the query did not select stay `UNSET`, not `None` — use `is UNSET` (import `UNSET` from `cloudy_salesforce`) rather than `is None` to tell whether a field was selected. `UNSET` is falsy, so `account.Name or "n/a"` works. `None` from Salesforce (explicit null in the JSON) still becomes Python `None`. Regenerate sObjects to pick up `UNSET` defaults and the ability to clear fields.
