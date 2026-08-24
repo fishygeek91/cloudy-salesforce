@@ -19,5 +19,6 @@ class Opportunity:
     Account: Account | None | UnsetType = UNSET
     CloseDate: datetime.date | None | UnsetType = UNSET
 
+# Runtime imports after the class body so circular relationships resolve.
 
-from .Account import Account
+from .Account import Account  # noqa: E402

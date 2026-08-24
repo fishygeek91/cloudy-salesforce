@@ -27,7 +27,8 @@ class {{ sobject }}:
     {{ field_name }}: {{ field_type }} | None | UnsetType = UNSET
 {%- endfor %}
 {% if related_imports %}
+# Runtime imports after the class body so circular relationships resolve.
 {% for imp in related_imports %}
-from .{{ imp }} import {{ imp }}
+from .{{ imp }} import {{ imp }}  # noqa: E402
 {%- endfor %}
 {% endif %}

@@ -244,6 +244,40 @@ def test_request_reauthenticates_on_invalid_session_id():
     assert auth.session.request.call_count == 2
 
 
+def test_request_reauth_uses_refreshed_instance_url():
+    auth = DummyAuth()
+    client = SalesforceClient(auth)
+
+    success_response = MagicMock()
+    success_response.content = b'{"ok": true}'
+    success_response.json.return_value = {"ok": True}
+    success_response.raise_for_status = MagicMock()
+
+    invalid_session_response = _mock_http_error_response(
+        status_code=401,
+        content=b'[{"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}]',
+        json_return=[
+            {"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}
+        ],
+    )
+
+    def reauth_with_new_host() -> tuple[object, str]:
+        auth.instance_url = "https://new.my.salesforce.com"
+        return auth.session, auth.instance_url
+
+    auth.authenticate = reauth_with_new_host
+    auth.session.request = MagicMock(
+        side_effect=[invalid_session_response, success_response]
+    )
+
+    result = client.request("GET", "/services/data/v61.0/query")
+
+    assert result == {"ok": True}
+    urls = [call.args[1] for call in auth.session.request.call_args_list]
+    assert urls[0] == "https://example.my.salesforce.com/services/data/v61.0/query"
+    assert urls[1] == "https://new.my.salesforce.com/services/data/v61.0/query"
+
+
 def test_request_does_not_reauthenticate_session_auth():
     auth = SessionAuthentication("tok", "https://example.my.salesforce.com")
     client = SalesforceClient(auth)

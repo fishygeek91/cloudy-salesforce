@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-from typing import Any
+import types
+from typing import Any, Union, get_args, get_origin
 
-from cloudy_salesforce.types import UNSET
+from cloudy_salesforce.types import UNSET, UnsetType
 
 
 def _is_sobject_type(cls: type) -> bool:
@@ -41,21 +42,41 @@ def _serialize_value(value: Any) -> Any:
     return value
 
 
+def _annotation_includes_unset(annotation: object) -> bool:
+    """True when a field annotation includes ``UnsetType`` (UNSET-aware classes)."""
+    if annotation is UnsetType:
+        return True
+    origin = get_origin(annotation)
+    if origin is Union or origin is types.UnionType:
+        return any(_annotation_includes_unset(arg) for arg in get_args(annotation))
+    return False
+
+
 def serialize_record(record: Any) -> dict[str, Any]:
     """Serialize an sObject instance to a composite API record dict.
 
-    Fields set to ``UNSET`` are omitted from the payload. Explicit ``None``
-    values are included as JSON null (``null`` in the request body).
+    Fields set to ``UNSET`` are omitted. Explicit ``None`` is sent as JSON null
+    only when the field annotation includes ``UnsetType`` (generated classes
+    after UNSET landed). Pre-UNSET dataclasses still omit ``None``. Nested
+    relationship fields are never sent as null — the composite API rejects them.
     """
     if not is_sobject_instance(record):
         raise TypeError(f"Expected sObject instance, got {type(record).__name__}")
+    from cloudy_salesforce.query.builder import _is_relationship_annotation
+    from cloudy_salesforce.sobjects.sobject import get_sobject_type_hints
+
+    hints = get_sobject_type_hints(type(record))
     result: dict[str, Any] = {}
     for field in dataclasses.fields(record):
         value = getattr(record, field.name)
         if value is UNSET:
             continue
+        annotation = hints.get(field.name)
         if value is None:
-            result[field.name] = None
+            if annotation is not None and _is_relationship_annotation(annotation):
+                continue
+            if _annotation_includes_unset(annotation):
+                result[field.name] = None
             continue
         if _should_skip_value(value):
             continue

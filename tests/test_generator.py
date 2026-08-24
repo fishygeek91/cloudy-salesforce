@@ -299,6 +299,7 @@ def test_template_render_circular_imports(tmp_path):
         related_imports=["Account"],
         needs_datetime=False,
     )
+    assert "# noqa: E402" in opportunity_source
 
     pkg_dir = tmp_path / "generated_sobjects"
     pkg_dir.mkdir()

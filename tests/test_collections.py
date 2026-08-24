@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
@@ -255,6 +256,37 @@ def test_serialize_omits_unset_includes_none():
 
     assert serialize_record(account_unset) == {"Name": "Acme"}
     assert serialize_record(account_none) == {"Name": "Acme", "Description": None}
+
+
+@sobject("OldAccount")
+@dataclass
+class OldAccount:
+    Id: str | None = None
+    Name: str | None = None
+    Industry: str | None = None
+
+
+def test_serialize_pre_unset_dataclass_omits_none():
+    serialized = serialize_record(OldAccount(Id="001", Name="x"))
+    assert serialized == {"Id": "001", "Name": "x"}
+    assert "Industry" not in serialized
+
+
+def test_serialize_skips_none_relationship():
+    from cloudy_salesforce.sobjects.sobject import parse_record
+
+    opp = parse_record(
+        Opportunity,
+        {"Id": "006", "Name": "n", "Account": None},
+    )
+    serialized = serialize_record(opp)
+    assert serialized == {"Id": "006", "Name": "n"}
+    assert "Account" not in serialized
+
+
+def test_serialize_deepcopy_keeps_unset_identity():
+    serialized = serialize_record(copy.deepcopy(Account(Id="001")))
+    assert serialized == {"Id": "001"}
 
 
 def test_serialize_date_and_datetime_fields():

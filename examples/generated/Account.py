@@ -20,5 +20,6 @@ class Account:
     OwnerId: str | None | UnsetType = UNSET
     Opportunities: list[Opportunity] | None | UnsetType = UNSET
 
+# Runtime imports after the class body so circular relationships resolve.
 
-from .Opportunity import Opportunity
+from .Opportunity import Opportunity  # noqa: E402

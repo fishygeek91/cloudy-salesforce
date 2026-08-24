@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Generated fields default to `UNSET`; explicit `None` serializes as JSON null. **Regenerate sObjects.** This is a breaking change for previously generated dataclasses; the next published version should be 0.4.0.
+- Generated fields default to `UNSET`; explicit `None` serializes as JSON null when the field annotation includes `UnsetType`. Pre-UNSET generated classes still omit `None` so upgrading the package without regenerating cannot wipe fields. **Regenerate sObjects** to clear fields via `None`. Next published version should be 0.4.0.
 - `SObjectGenerator` now takes a `SalesforceClient` instead of a bare auth strategy
 - Generated `__init__.py` includes `__all__`
 - Picklist aliases keep underscores and use a `_PICKLIST` suffix; empty picklists type as `str`
@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Typed DML omits `None` on pre-UNSET generated classes and never sends relationship fields as JSON null
+- `UNSET` is a copy/pickle-safe falsy singleton
+- `SalesforceClient.request` rebuilds the URL after re-auth so a new instance URL is used
+- Generated runtime imports include `# noqa: E402`
 - Config auth no longer requires a `.env` file (`find_dotenv(usecwd=True)`, missing file is ok)
 - Generate CLI uses alias `api_version` via `from_config`
 - `soql_literal` no longer emits scientific notation for small floats

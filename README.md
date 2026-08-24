@@ -121,7 +121,7 @@ accounts = Account.select("Id").execute()
 
 ## Insert, update, upsert, delete
 
-Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`. Generated fields default to `UNSET` and are omitted from DML payloads; explicit `None` is sent as JSON null (clears the field on update/upsert). Nested relationship objects are still omitted. After `parse_record` / query, fields the query did not select stay `UNSET`, not `None` — use `is UNSET` (import `UNSET` from `cloudy_salesforce`) rather than `is None` to tell whether a field was selected. `None` from Salesforce (explicit null in the JSON) still becomes Python `None`. Regenerate sObjects to pick up `UNSET` defaults.
+Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`. Generated fields default to `UNSET` and are omitted from DML payloads; explicit `None` is sent as JSON null (clears the field on update/upsert) when the class uses `UnsetType` in its annotations. Dataclasses generated before UNSET still omit `None`, so upgrading the package without regenerating cannot wipe fields. Nested relationship objects — including `None` lookups — are omitted (the composite API rejects `"Account": null`). After `parse_record` / query, fields the query did not select stay `UNSET`, not `None` — use `is UNSET` (import `UNSET` from `cloudy_salesforce`) rather than `is None` to tell whether a field was selected. `UNSET` is falsy, so `account.Name or "n/a"` works. `None` from Salesforce (explicit null in the JSON) still becomes Python `None`. Regenerate sObjects to pick up `UNSET` defaults and the ability to clear fields.
 
 ```python
 from cloudy_salesforce import insert, update, upsert, delete
