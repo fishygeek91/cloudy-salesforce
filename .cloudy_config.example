@@ -5,6 +5,7 @@
       "prod": {
         "type": "basic",
         "login_url": "https://login.salesforce.com",
+        "api_version": "v61.0",
         "credentials": {
           "username": "SF_USERNAME",
           "password": "SF_PASSWORD",

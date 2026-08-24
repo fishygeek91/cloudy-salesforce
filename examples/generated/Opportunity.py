@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from cloudy_salesforce.sobjects import sobject
+from cloudy_salesforce.types import UNSET, UnsetType
 
 if TYPE_CHECKING:
     from .Account import Account
@@ -12,8 +13,11 @@ if TYPE_CHECKING:
 @sobject()
 @dataclass
 class Opportunity:
-    Id: str | None = None
-    Name: str | None = None
-    AccountId: str | None = None
-    Account: Account | None = None
-    CloseDate: datetime.date | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    AccountId: str | None | UnsetType = UNSET
+    Account: Account | None | UnsetType = UNSET
+    CloseDate: datetime.date | None | UnsetType = UNSET
+
+
+from .Account import Account

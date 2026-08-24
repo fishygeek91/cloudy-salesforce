@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import datetime
-import sys
 import types
 from collections.abc import Iterable
-from typing import Generic, TypeVar, Union, get_args, get_origin, get_type_hints
+from decimal import Decimal
+from typing import Generic, TypeVar, Union, get_args, get_origin
 
 from cloudy_salesforce.client import SalesforceClient
+from cloudy_salesforce.types import UnsetType
 
 T = TypeVar("T")
 
@@ -46,28 +47,20 @@ def _sobject_api_name(sobject_type: type) -> str:
 
 def _field_annotations(sobject_type: type) -> dict[str, object]:
     """Resolve dataclass field annotations, including forward refs when possible."""
-    from cloudy_salesforce.sobjects.sobject import get_sobject_registry
+    from cloudy_salesforce.sobjects.sobject import get_sobject_type_hints
 
-    module = sys.modules.get(sobject_type.__module__)
-    module_ns = getattr(module, "__dict__", {})
-    try:
-        return dict(
-            get_type_hints(
-                sobject_type,
-                globalns=module_ns,
-                localns={**module_ns, **get_sobject_registry()},
-            )
-        )
-    except NameError:
-        raw = getattr(sobject_type, "__annotations__", {})
-        return dict(raw)
+    return dict(get_sobject_type_hints(sobject_type))
 
 
 def _unwrap_optional(annotation: object) -> object:
     """Return the non-None member of an Optional/union, otherwise the annotation."""
     origin = get_origin(annotation)
     if origin is Union or origin is types.UnionType:
-        args = [arg for arg in get_args(annotation) if arg is not type(None)]
+        args = [
+            arg
+            for arg in get_args(annotation)
+            if arg is not type(None) and arg is not UnsetType
+        ]
         if len(args) == 1:
             return args[0]
     return annotation
@@ -120,6 +113,17 @@ def _soql_datetime(value: datetime.datetime) -> str:
     return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _soql_number(value: float | Decimal) -> str:
+    """Format a numeric SOQL literal without scientific notation."""
+    if isinstance(value, Decimal):
+        text = format(value, "f")
+    else:
+        text = format(Decimal(str(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text if text else "0"
+
+
 def soql_literal(value: object) -> str:
     """Render a Python value as a SOQL literal."""
     if value is None:
@@ -128,8 +132,10 @@ def soql_literal(value: object) -> str:
         return "TRUE" if value else "FALSE"
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, Decimal):
+        return _soql_number(value)
     if isinstance(value, float):
-        return repr(value)
+        return _soql_number(value)
     if isinstance(value, datetime.datetime):
         return _soql_datetime(value)
     if isinstance(value, datetime.date):

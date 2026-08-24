@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `cloudy-salesforce generate --out` and `--api-version`
+- `SObjects.describe_global()`
+- `SalesforceClient` `retries=` and `timeout=`
+- `UNSET` / `UnsetType` sentinel for omitted DML fields
+- `soql_literal` support for `decimal.Decimal`
+
+### Changed
+
+- Generated fields default to `UNSET`; explicit `None` serializes as JSON null. **Regenerate sObjects.** This is a breaking change for previously generated dataclasses; the next published version should be 0.4.0.
+- `SObjectGenerator` now takes a `SalesforceClient` instead of a bare auth strategy
+- Generated `__init__.py` includes `__all__`
+- Picklist aliases keep underscores and use a `_PICKLIST` suffix; empty picklists type as `str`
+- Generated modules import related sObjects at runtime (after the class body)
+- `SalesforceClient.request` honors `Retry-After` (capped at 30s) and re-authenticates on `INVALID_SESSION_ID` except session-token auth
+
+### Fixed
+
+- Config auth no longer requires a `.env` file (`find_dotenv(usecwd=True)`, missing file is ok)
+- Generate CLI uses alias `api_version` via `from_config`
+- `soql_literal` no longer emits scientific notation for small floats
+
 ## [0.3.0] - 2026-08-14
 
 ### Added

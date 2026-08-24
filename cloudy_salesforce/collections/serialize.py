@@ -4,6 +4,8 @@ import dataclasses
 import datetime
 from typing import Any
 
+from cloudy_salesforce.types import UNSET
+
 
 def _is_sobject_type(cls: type) -> bool:
     meta = getattr(cls, "__sf_meta__", None)
@@ -40,12 +42,20 @@ def _serialize_value(value: Any) -> Any:
 
 
 def serialize_record(record: Any) -> dict[str, Any]:
+    """Serialize an sObject instance to a composite API record dict.
+
+    Fields set to ``UNSET`` are omitted from the payload. Explicit ``None``
+    values are included as JSON null (``null`` in the request body).
+    """
     if not is_sobject_instance(record):
         raise TypeError(f"Expected sObject instance, got {type(record).__name__}")
     result: dict[str, Any] = {}
     for field in dataclasses.fields(record):
         value = getattr(record, field.name)
+        if value is UNSET:
+            continue
         if value is None:
+            result[field.name] = None
             continue
         if _should_skip_value(value):
             continue

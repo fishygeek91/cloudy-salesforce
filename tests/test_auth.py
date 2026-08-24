@@ -1,6 +1,8 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from cloudy_salesforce.client.auth import (
     JWT_BEARER_GRANT_TYPE,
     JwtBearerAuthentication,
@@ -74,14 +76,16 @@ def test_build_auth_from_alias_jwt(monkeypatch):
         },
     }
 
-    with patch("cloudy_salesforce.client.config.find_dotenv", return_value=".env"):
-        with patch("cloudy_salesforce.client.config.load_dotenv"):
+    with patch("cloudy_salesforce.client.config.find_dotenv", return_value=".env") as mock_find_dotenv:
+        with patch("cloudy_salesforce.client.config.load_dotenv") as mock_load_dotenv:
             with patch(
                 "cloudy_salesforce.client.config.JwtBearerAuthentication"
             ) as mock_jwt_auth:
                 mock_jwt_auth.return_value = DummyAuth()
                 auth = build_auth_from_alias(alias)
 
+    mock_find_dotenv.assert_called_once_with(usecwd=True)
+    mock_load_dotenv.assert_called_once_with(dotenv_path=".env", override=False)
     mock_jwt_auth.assert_called_once_with(
         client_id="client-id",
         username="user@example.com",
@@ -103,19 +107,76 @@ def test_build_auth_from_alias_session(monkeypatch):
         },
     }
 
-    with patch("cloudy_salesforce.client.config.find_dotenv", return_value=".env"):
-        with patch("cloudy_salesforce.client.config.load_dotenv"):
+    with patch("cloudy_salesforce.client.config.find_dotenv", return_value=".env") as mock_find_dotenv:
+        with patch("cloudy_salesforce.client.config.load_dotenv") as mock_load_dotenv:
             with patch(
                 "cloudy_salesforce.client.config.SessionAuthentication"
             ) as mock_session_auth:
                 mock_session_auth.return_value = DummyAuth()
                 auth = build_auth_from_alias(alias)
 
+    mock_find_dotenv.assert_called_once_with(usecwd=True)
+    mock_load_dotenv.assert_called_once_with(dotenv_path=".env", override=False)
     mock_session_auth.assert_called_once_with(
         "access-token",
         "https://na1.salesforce.com",
     )
     assert isinstance(auth, DummyAuth)
+
+
+def test_build_auth_from_alias_uses_env_without_dotenv_file(monkeypatch):
+    monkeypatch.setenv("SF_USERNAME", "user@example.com")
+    monkeypatch.setenv("SF_PASSWORD", "secret")
+    monkeypatch.setenv("SF_SECURITY_TOKEN", "token")
+
+    alias = {
+        "type": "basic",
+        "login_url": "https://login.salesforce.com",
+        "credentials": {
+            "username": "SF_USERNAME",
+            "password": "SF_PASSWORD",
+            "security_token": "SF_SECURITY_TOKEN",
+        },
+    }
+
+    with patch("cloudy_salesforce.client.config.find_dotenv", return_value="") as mock_find_dotenv:
+        with patch("cloudy_salesforce.client.config.load_dotenv") as mock_load_dotenv:
+            with patch(
+                "cloudy_salesforce.client.config.UsernamePasswordAuthentication"
+            ) as mock_basic_auth:
+                mock_basic_auth.return_value = DummyAuth()
+                auth = build_auth_from_alias(alias)
+
+    mock_find_dotenv.assert_called_once_with(usecwd=True)
+    mock_load_dotenv.assert_called_once_with(dotenv_path="", override=False)
+    mock_basic_auth.assert_called_once_with(
+        username="user@example.com",
+        password="secret",
+        security_token="token",
+        login_url="https://login.salesforce.com",
+    )
+    assert isinstance(auth, DummyAuth)
+
+
+def test_build_auth_from_alias_missing_env_raises_without_dotenv_file(monkeypatch):
+    monkeypatch.delenv("SF_USERNAME", raising=False)
+    monkeypatch.delenv("SF_PASSWORD", raising=False)
+    monkeypatch.delenv("SF_SECURITY_TOKEN", raising=False)
+
+    alias = {
+        "type": "basic",
+        "login_url": "https://login.salesforce.com",
+        "credentials": {
+            "username": "SF_USERNAME",
+            "password": "SF_PASSWORD",
+            "security_token": "SF_SECURITY_TOKEN",
+        },
+    }
+
+    with patch("cloudy_salesforce.client.config.find_dotenv", return_value=""):
+        with patch("cloudy_salesforce.client.config.load_dotenv"):
+            with pytest.raises(ValueError, match="Missing required environment variable: SF_USERNAME"):
+                build_auth_from_alias(alias)
 
 
 @patch("cloudy_salesforce.client.salesforceclient.time.sleep")

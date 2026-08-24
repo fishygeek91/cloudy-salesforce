@@ -117,8 +117,14 @@ def build_auth_from_alias(
     *,
     api_version: str | None = None,
 ) -> BaseAuthentication:
+    """Build authentication from a `.cloudy_config` alias definition.
+
+    Optional `.env` is loaded once from the current working directory when present;
+    missing `.env` is allowed when required variables are already in the environment.
+    """
+    load_dotenv(dotenv_path=find_dotenv(usecwd=True), override=False)
+
     if alias["type"] == "basic":
-        load_dotenv(dotenv_path=find_dotenv(raise_error_if_not_found=True))
         credentials = alias["credentials"]
         username_var = credentials["username"]
         password_var = credentials["password"]
@@ -140,7 +146,6 @@ def build_auth_from_alias(
         return UsernamePasswordAuthentication(**kwargs)
 
     if alias["type"] == "jwt":
-        load_dotenv(dotenv_path=find_dotenv(raise_error_if_not_found=True))
         credentials = alias["credentials"]
         client_id = _require_env(credentials["client_id"])
         username = _require_env(credentials["username"])
@@ -157,7 +162,6 @@ def build_auth_from_alias(
         return JwtBearerAuthentication(**jwt_kwargs)
 
     if alias["type"] == "session":
-        load_dotenv(dotenv_path=find_dotenv(raise_error_if_not_found=True))
         credentials = alias["credentials"]
         access_token = _require_env(credentials["access_token"])
         instance_url = _require_env(credentials["instance_url"])

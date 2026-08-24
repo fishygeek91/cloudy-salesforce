@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from typing import Any, NoReturn
 
@@ -7,7 +8,7 @@ from requests.exceptions import HTTPError
 
 from cloudy_salesforce.exceptions import SalesforceError
 
-from .auth import BaseAuthentication
+from .auth import BaseAuthentication, SessionAuthentication
 from .config import build_auth_from_alias, load_cloudy_config, resolve_alias
 
 logger = logging.getLogger(__name__)
@@ -91,13 +92,22 @@ class SalesforceClient:
         api_version: str = DEFAULT_API_VERSION,
         *,
         default: bool = False,
-    ):
+        retries: int = 2,
+        timeout: float = 30.0,
+    ) -> None:
         if not isinstance(auth_strategy, BaseAuthentication):
             raise TypeError(
                 "auth_strategy must be an instance of a subclass of BaseAuthentication"
             )
+        if retries < 0:
+            raise ValueError("retries must be >= 0")
+        if timeout <= 0:
+            raise ValueError("timeout must be > 0")
         self.auth_strategy = auth_strategy
         self.api_version = api_version
+        self._retries = retries
+        self._timeout = timeout
+        self._auth_lock = threading.Lock()
 
         if default:
             self.__class__._default_instance = self
@@ -161,6 +171,39 @@ class SalesforceClient:
     def get_instance_url(self) -> str:
         return self.auth_strategy.instance_url
 
+    def _can_reauthenticate(self) -> bool:
+        """Return True when the auth strategy can obtain a fresh session."""
+        return not isinstance(self.auth_strategy, SessionAuthentication)
+
+    def _reauthenticate(self) -> None:
+        """Refresh session and instance URL from the auth strategy."""
+        with self._auth_lock:
+            session, instance_url = self.auth_strategy.authenticate()
+            self.auth_strategy.session = session
+            self.auth_strategy.instance_url = instance_url
+
+    @staticmethod
+    def _retry_after_seconds(http_err: HTTPError, fallback: float) -> float:
+        """Parse Retry-After header, capped at 30 seconds, or return fallback."""
+        response = http_err.response
+        if response is None:
+            return fallback
+        raw = response.headers.get("Retry-After")
+        if raw is None:
+            return fallback
+        if isinstance(raw, (int, float)):
+            delay = float(raw)
+        elif isinstance(raw, str):
+            try:
+                delay = float(raw)
+            except ValueError:
+                return fallback
+        else:
+            return fallback
+        if delay < 0:
+            return fallback
+        return min(delay, 30.0)
+
     def request(
         self,
         method: str,
@@ -172,11 +215,18 @@ class SalesforceClient:
             request_url = url
         else:
             request_url = f"{self.get_instance_url()}{url}"
-        last_http_err: HTTPError | None = None
-        for attempt in range(len(_RATE_LIMIT_RETRY_DELAYS) + 1):
+
+        reauthenticated = False
+        rate_limit_attempt = 0
+
+        while True:
             try:
                 response = self.get_session().request(
-                    method, request_url, json=body, params=params, timeout=30
+                    method,
+                    request_url,
+                    json=body,
+                    params=params,
+                    timeout=self._timeout,
                 )
                 response.raise_for_status()
                 if not response.content:
@@ -184,18 +234,26 @@ class SalesforceClient:
                 return response.json()
 
             except HTTPError as http_err:
-                last_http_err = http_err
-                if attempt < len(_RATE_LIMIT_RETRY_DELAYS) and _is_rate_limited(
-                    http_err
+                if (
+                    _extract_error_code(http_err) == "INVALID_SESSION_ID"
+                    and self._can_reauthenticate()
+                    and not reauthenticated
                 ):
-                    time.sleep(_RATE_LIMIT_RETRY_DELAYS[attempt])
+                    self._reauthenticate()
+                    reauthenticated = True
                     continue
+
+                if _is_rate_limited(http_err) and rate_limit_attempt < self._retries:
+                    delay_index = min(
+                        rate_limit_attempt, len(_RATE_LIMIT_RETRY_DELAYS) - 1
+                    )
+                    fallback = _RATE_LIMIT_RETRY_DELAYS[delay_index]
+                    time.sleep(self._retry_after_seconds(http_err, fallback))
+                    rate_limit_attempt += 1
+                    continue
+
                 logger.error(f"HTTP error occurred during query: {http_err}")
                 _raise_salesforce_error(http_err)
             except Exception as err:
                 logger.error(f"Other error occurred during query: {err}")
                 raise
-
-        if last_http_err is not None:
-            _raise_salesforce_error(last_http_err)
-        raise RuntimeError("request failed without HTTP error")

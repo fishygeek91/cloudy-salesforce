@@ -67,7 +67,7 @@ def _render_examples_from_fixture() -> dict[str, str]:
         )
 
     init_lines = [f"from .{name} import {name}\n" for name in SOBJECT_ORDER]
-    rendered["__init__.py"] = "".join(init_lines)
+    rendered["__init__.py"] = "".join(init_lines) + f"\n__all__ = {repr(list(SOBJECT_ORDER))}\n"
     return rendered
 
 

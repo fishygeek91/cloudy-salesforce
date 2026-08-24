@@ -14,6 +14,7 @@ from cloudy_salesforce.collections.crud_operations import (
 )
 from cloudy_salesforce.collections.serialize import serialize_record
 from cloudy_salesforce.sobjects import sobject
+from cloudy_salesforce.types import UNSET, UnsetType
 
 
 class FakeClient:
@@ -45,28 +46,28 @@ def _props(records, all_or_none=True):
 @sobject()
 @dataclass
 class Account:
-    Id: str | None = None
-    Name: str | None = None
-    Industry: str | None = None
-    Description: str | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    Industry: str | None | UnsetType = UNSET
+    Description: str | None | UnsetType = UNSET
 
 
 @sobject()
 @dataclass
 class Opportunity:
-    Id: str | None = None
-    Name: str | None = None
-    AccountId: str | None = None
-    Account: Account | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    AccountId: str | None | UnsetType = UNSET
+    Account: Account | None | UnsetType = UNSET
 
 
 @sobject()
 @dataclass
 class Event:
-    Id: str | None = None
-    Subject: str | None = None
-    ActivityDate: date | None = None
-    StartDateTime: datetime | None = None
+    Id: str | None | UnsetType = UNSET
+    Subject: str | None | UnsetType = UNSET
+    ActivityDate: date | None | UnsetType = UNSET
+    StartDateTime: datetime | None | UnsetType = UNSET
 
 
 def _success_response(record_id: str, *, created: bool | None = None) -> list[dict]:
@@ -137,13 +138,29 @@ def test_insert_dataclass_serializes_to_composite_body():
     assert body_record["attributes"]["type"] == "Account"
     assert body_record["Name"] == "Acme"
     assert body_record["Industry"] == "Technology"
-    assert "Description" not in body_record
+    assert "Description" in body_record
+    assert body_record["Description"] is None
     assert len(results) == 1
     assert isinstance(results[0], DmlResult)
     assert results[0].id == "001NEW"
     assert results[0].success is True
     assert results[0].created is True
-    assert results[0].record == {"Name": "Acme", "Industry": "Technology"}
+    assert results[0].record == {
+        "Name": "Acme",
+        "Industry": "Technology",
+        "Description": None,
+    }
+
+
+def test_insert_omits_unset_fields():
+    fake = FakeClient([_success_response("001NEW", created=True)])
+    record = Account(Name="Acme", Industry="Technology")
+
+    insert(record, client=fake)
+
+    body_record = fake.calls[0]["body"]["records"][0]
+    assert "Description" not in body_record
+    assert "Id" not in body_record
 
 
 def test_insert_list_of_dataclasses():
@@ -195,6 +212,17 @@ def test_update_from_dataclass():
     assert results[0].success is True
 
 
+def test_update_sends_none_as_json_null():
+    fake = FakeClient([_success_response("001UPD")])
+    record = Account(Id="001UPD", Industry=None)
+
+    update(record, client=fake)
+
+    body_record = fake.calls[0]["body"]["records"][0]
+    assert "Industry" in body_record
+    assert body_record["Industry"] is None
+
+
 def test_delete_from_dataclass():
     fake = FakeClient([_success_response("001DEL")])
     record = Account(Id="001DEL")
@@ -219,6 +247,14 @@ def test_serialize_skips_nested_account_on_opportunity():
 
     assert serialized == {"Name": "Big Deal", "AccountId": "001PARENT"}
     assert "Account" not in serialized
+
+
+def test_serialize_omits_unset_includes_none():
+    account_unset = Account(Name="Acme")
+    account_none = Account(Name="Acme", Description=None)
+
+    assert serialize_record(account_unset) == {"Name": "Acme"}
+    assert serialize_record(account_none) == {"Name": "Acme", "Description": None}
 
 
 def test_serialize_date_and_datetime_fields():
