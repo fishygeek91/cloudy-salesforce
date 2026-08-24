@@ -12,7 +12,7 @@ from cloudy_salesforce.query import SoqlQuery, query, select, soql_query
 from cloudy_salesforce.sobjects import SObjects, parse_sobject_response, sobject
 from cloudy_salesforce.types import UNSET, UnsetType
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "SalesforceClient",
