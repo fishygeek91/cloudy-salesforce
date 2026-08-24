@@ -6,11 +6,13 @@ from dataclasses import dataclass
 import pytest
 
 from cloudy_salesforce.sobjects import (
+    SObjects,
     get_sobject_registry,
     parse_sobject_response,
     sobject,
 )
 from cloudy_salesforce.sobjects.sobject import parse_record
+from cloudy_salesforce.types import UNSET, UnsetType
 
 
 @sobject()
@@ -36,6 +38,13 @@ class Account:
     Industry: str | None = None
     Owner: User | None = None
     Opportunities: list[Opportunity] | None = None
+
+
+@sobject()
+@dataclass
+class DatedThing:
+    Id: str | None | UnsetType = UNSET
+    CloseDate: datetime.date | None | UnsetType = UNSET
 
 
 def test_close_date_string_coerced_to_date():
@@ -150,6 +159,17 @@ def test_empty_records_returns_empty_list():
     assert parse_sobject_response(Account, {"records": []}) == []
 
 
+def test_unset_type_union_still_coerces_close_date():
+    record = {
+        "CloseDate": "2024-01-15",
+        "attributes": {"type": "DatedThing"},
+    }
+    result = parse_record(DatedThing, record)
+    assert result.CloseDate == datetime.date(2024, 1, 15)
+    assert isinstance(result.CloseDate, datetime.date)
+    assert result.Id is UNSET
+
+
 def test_forward_ref_registry_resolves_nested_types():
     registry = get_sobject_registry()
     assert "Account" in registry
@@ -181,3 +201,52 @@ def test_forward_ref_registry_resolves_nested_types():
     assert len(results[0].Opportunities) == 1
     assert isinstance(results[0].Opportunities[0], Opportunity)
     assert results[0].Opportunities[0].Name == "Big Deal"
+
+
+class FakeClient:
+    """Minimal Salesforce client stub for describe_global tests."""
+
+    api_version = "v61.0"
+
+    def __init__(self, response: object) -> None:
+        self._response = response
+        self.last_request: tuple[str, str] | None = None
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        body: object | None = None,
+        params: object | None = None,
+    ) -> object:
+        self.last_request = (method, url)
+        return self._response
+
+
+def test_describe_global_returns_sobjects_list():
+    sobjects = [{"name": "Account", "label": "Account"}]
+    client = FakeClient({"sobjects": sobjects})
+    result = SObjects(sf_client=client).describe_global()
+    assert result == sobjects
+    assert client.last_request == ("GET", "/services/data/v61.0/sobjects/")
+
+
+def test_describe_global_missing_key_raises():
+    client = FakeClient({"encoding": "UTF-8"})
+    with pytest.raises(ValueError, match="describe_global expected a dict with 'sobjects'"):
+        SObjects(sf_client=client).describe_global()
+
+
+def test_describe_global_non_dict_raises():
+    client = FakeClient(["not", "a", "dict"])
+    with pytest.raises(ValueError, match="describe_global expected a dict with 'sobjects'"):
+        SObjects(sf_client=client).describe_global()
+
+
+def test_describe_global_sobjects_not_list_raises():
+    client = FakeClient({"sobjects": "not-a-list"})
+    with pytest.raises(
+        ValueError,
+        match="describe_global expected 'sobjects' to be a list",
+    ):
+        SObjects(sf_client=client).describe_global()

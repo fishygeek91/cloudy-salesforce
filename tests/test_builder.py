@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+from decimal import Decimal
 
 import pytest
 
@@ -117,6 +118,9 @@ def test_soql_literal_types():
     assert soql_literal(True) == "TRUE"
     assert soql_literal(False) == "FALSE"
     assert soql_literal(3) == "3"
+    assert soql_literal(0.00001) == "0.00001"
+    assert soql_literal(Decimal("1.5")) == "1.5"
+    assert soql_literal(1.0) == "1"
     assert soql_literal(datetime.date(2024, 1, 15)) == "2024-01-15"
     assert (
         soql_literal(datetime.datetime(2024, 1, 15, 12, 30, 0))

@@ -2,7 +2,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -49,6 +49,44 @@ def test_main_configures_logging_when_no_handlers(monkeypatch):
             level=logging.INFO,
             format="%(levelname)s %(name)s: %(message)s",
         )
+
+
+def test_generate_passes_out_and_api_version(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _write_cloudy_config(tmp_path)
+
+    mock_client = MagicMock()
+    mock_generator = MagicMock()
+
+    with patch(
+        "cloudy_salesforce.generator.cli.SalesforceClient.from_config",
+        return_value=mock_client,
+    ) as mock_from_config:
+        with patch(
+            "cloudy_salesforce.generator.cli.SObjectGenerator",
+            return_value=mock_generator,
+        ) as mock_gen_class:
+            monkeypatch.setattr(
+                sys,
+                "argv",
+                [
+                    "cloudy-salesforce",
+                    "generate",
+                    "--alias",
+                    "prod",
+                    "--out",
+                    "examples/generated",
+                    "--api-version",
+                    "v62.0",
+                ],
+            )
+            main()
+
+    mock_from_config.assert_called_once_with(alias="prod", api_version="v62.0")
+    mock_gen_class.assert_called_once_with(
+        mock_client, output_dir="examples/generated"
+    )
+    mock_generator.generate_all.assert_called_once_with(None)
 
 
 def test_generate_raises_without_cloudy_config(monkeypatch, tmp_path):

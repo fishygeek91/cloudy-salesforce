@@ -5,10 +5,8 @@ from pathlib import Path
 from cloudy_salesforce.client.config import (
     DEFAULT_CLOUDY_CONFIG_EXAMPLE,
     DEFAULT_ENV_EXAMPLE,
-    build_auth_from_alias,
-    load_cloudy_config,
-    resolve_alias,
 )
+from cloudy_salesforce.client.salesforceclient import SalesforceClient
 
 from .generator import SObjectGenerator
 
@@ -25,11 +23,11 @@ def generate(args):
         "Generating code with sobjects=%s and alias=%s", sobjects, alias_name
     )
 
-    config = load_cloudy_config()
-    alias = resolve_alias(config, alias_name)
-    auth = build_auth_from_alias(alias)
-
-    generator = SObjectGenerator(auth)
+    client = SalesforceClient.from_config(
+        alias=args.alias,
+        api_version=args.api_version,
+    )
+    generator = SObjectGenerator(client, output_dir=args.out)
     generator.generate_all(sobjects)
 
 
@@ -101,6 +99,16 @@ def main():
         "-a",
         default="default",
         help="Auth alias from .cloudy_config (default: the config default_alias)",
+    )
+    generate_parser.add_argument(
+        "--out",
+        default="sobjects",
+        help="Output directory for generated modules.",
+    )
+    generate_parser.add_argument(
+        "--api-version",
+        default=None,
+        help="Override REST API version (e.g. v62.0).",
     )
     generate_parser.set_defaults(func=generate)
 

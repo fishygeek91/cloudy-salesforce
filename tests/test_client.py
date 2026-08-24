@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from requests.exceptions import HTTPError
 
-from cloudy_salesforce.client.auth import UsernamePasswordAuthentication
+from cloudy_salesforce.client.auth import (
+    SessionAuthentication,
+    UsernamePasswordAuthentication,
+)
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
 from cloudy_salesforce.exceptions import SalesforceError
 from tests.conftest import DummyAuth
@@ -181,3 +184,132 @@ def test_username_password_authenticate_escapes_xml_in_credentials():
     assert "&lt;" in posted_body
     assert "<b" not in posted_body.split("<n1:password>")[0]
     assert "a&lt;b" in posted_body
+
+
+@patch("cloudy_salesforce.client.salesforceclient.time.sleep")
+def test_request_honors_retry_after_header_capped_at_30(mock_sleep):
+    auth = DummyAuth()
+    client = SalesforceClient(auth)
+
+    success_response = MagicMock()
+    success_response.content = b'{"ok": true}'
+    success_response.json.return_value = {"ok": True}
+    success_response.raise_for_status = MagicMock()
+
+    rate_limit_response = _mock_http_error_response(
+        status_code=429,
+        content=b"{}",
+        json_return={},
+    )
+    rate_limit_response.headers = {"Retry-After": "120"}
+
+    auth.session.request = MagicMock(
+        side_effect=[rate_limit_response, success_response]
+    )
+
+    result = client.request("GET", "/services/data/v61.0/query")
+
+    assert result == {"ok": True}
+    assert auth.session.request.call_count == 2
+    mock_sleep.assert_called_once_with(30.0)
+
+
+def test_request_reauthenticates_on_invalid_session_id():
+    auth = DummyAuth()
+    client = SalesforceClient(auth)
+
+    success_response = MagicMock()
+    success_response.content = b'{"ok": true}'
+    success_response.json.return_value = {"ok": True}
+    success_response.raise_for_status = MagicMock()
+
+    invalid_session_response = _mock_http_error_response(
+        status_code=401,
+        content=b'[{"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}]',
+        json_return=[
+            {"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}
+        ],
+    )
+
+    auth.session.request = MagicMock(
+        side_effect=[invalid_session_response, success_response]
+    )
+    original_authenticate = auth.authenticate
+    auth.authenticate = MagicMock(side_effect=original_authenticate)
+
+    result = client.request("GET", "/services/data/v61.0/query")
+
+    assert result == {"ok": True}
+    auth.authenticate.assert_called_once()
+    assert auth.session.request.call_count == 2
+
+
+def test_request_reauth_uses_refreshed_instance_url():
+    auth = DummyAuth()
+    client = SalesforceClient(auth)
+
+    success_response = MagicMock()
+    success_response.content = b'{"ok": true}'
+    success_response.json.return_value = {"ok": True}
+    success_response.raise_for_status = MagicMock()
+
+    invalid_session_response = _mock_http_error_response(
+        status_code=401,
+        content=b'[{"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}]',
+        json_return=[
+            {"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}
+        ],
+    )
+
+    def reauth_with_new_host() -> tuple[object, str]:
+        auth.instance_url = "https://new.my.salesforce.com"
+        return auth.session, auth.instance_url
+
+    auth.authenticate = reauth_with_new_host
+    auth.session.request = MagicMock(
+        side_effect=[invalid_session_response, success_response]
+    )
+
+    result = client.request("GET", "/services/data/v61.0/query")
+
+    assert result == {"ok": True}
+    urls = [call.args[1] for call in auth.session.request.call_args_list]
+    assert urls[0] == "https://example.my.salesforce.com/services/data/v61.0/query"
+    assert urls[1] == "https://new.my.salesforce.com/services/data/v61.0/query"
+
+
+def test_request_does_not_reauthenticate_session_auth():
+    auth = SessionAuthentication("tok", "https://example.my.salesforce.com")
+    client = SalesforceClient(auth)
+
+    invalid_session_response = _mock_http_error_response(
+        status_code=401,
+        content=b'[{"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}]',
+        json_return=[
+            {"errorCode": "INVALID_SESSION_ID", "message": "Session expired"}
+        ],
+    )
+
+    auth.session.request = MagicMock(return_value=invalid_session_response)
+
+    with pytest.raises(SalesforceError) as exc_info:
+        client.request("GET", "/services/data/v61.0/query")
+
+    err = exc_info.value
+    assert err.error_code == "INVALID_SESSION_ID"
+    assert auth.session.request.call_count == 1
+
+
+def test_request_passes_timeout_to_session():
+    auth = DummyAuth()
+    client = SalesforceClient(auth, timeout=5.0)
+
+    mock_response = MagicMock()
+    mock_response.content = b'{"ok": true}'
+    mock_response.json.return_value = {"ok": True}
+    mock_response.raise_for_status = MagicMock()
+    auth.session.request = MagicMock(return_value=mock_response)
+
+    client.request("GET", "/services/data/v61.0/query")
+
+    assert auth.session.request.call_args.kwargs["timeout"] == 5.0

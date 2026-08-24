@@ -20,17 +20,35 @@ if TYPE_CHECKING:
     from cloudy_salesforce.query.builder import SoqlQuery
 
 from cloudy_salesforce.client import SalesforceClient
+from cloudy_salesforce.types import UnsetType
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
 _SObjectRegistry: dict[str, type] = {}
+_type_hints_cache: dict[type, dict[str, object]] = {}
 
 
 def get_sobject_registry() -> dict[str, type]:
     """Return a copy of the registered sObject types."""
     return _SObjectRegistry.copy()
+
+
+def get_sobject_type_hints(sobject_type: type) -> dict[str, object]:
+    """Return cached typing.get_type_hints for an sObject class."""
+    cached = _type_hints_cache.get(sobject_type)
+    if cached is not None:
+        return cached
+    module = sys.modules.get(sobject_type.__module__)
+    module_ns = getattr(module, "__dict__", {})
+    hints = get_type_hints(
+        sobject_type,
+        globalns=module_ns,
+        localns={**module_ns, **_SObjectRegistry},
+    )
+    _type_hints_cache[sobject_type] = hints
+    return hints
 
 
 def sobject(api_name: str | None = None):
@@ -70,13 +88,7 @@ def parse_sobject_response(sobject: type[T], response: dict) -> list[T]:
 
 def parse_record(sobject: type[T], record: dict) -> T:
     """Parse a single Salesforce record dict into an sObject instance."""
-    module = sys.modules.get(sobject.__module__)
-    module_ns = getattr(module, "__dict__", {})
-    hints = get_type_hints(
-        sobject,
-        globalns=module_ns,
-        localns={**module_ns, **_SObjectRegistry},
-    )
+    hints = get_sobject_type_hints(sobject)
     instance = sobject()
     for key, value in record.items():
         if key == "attributes":
@@ -96,7 +108,11 @@ def _union_non_none_args(annotation: Any) -> list[Any] | None:
     """Return non-None union members, or None if the annotation is not a union."""
     origin = get_origin(annotation)
     if origin is Union or origin is types.UnionType:
-        return [arg for arg in get_args(annotation) if arg is not type(None)]
+        return [
+            arg
+            for arg in get_args(annotation)
+            if arg is not type(None) and arg is not UnsetType
+        ]
     return None
 
 
@@ -176,6 +192,22 @@ class SObjects:
         if sf_client is None:
             sf_client = SalesforceClient.get_default_instance()
         self.sf_client = sf_client
+
+    def describe_global(self) -> list[dict]:
+        """Return the org sObject list from GET /sobjects/."""
+        version = getattr(self.sf_client, "api_version", "v61.0")
+        url = f"/services/data/{version}/sobjects/"
+        response = self.sf_client.request("GET", url)
+        if not isinstance(response, dict) or "sobjects" not in response:
+            raise ValueError(
+                f"describe_global expected a dict with 'sobjects', got: {response}"
+            )
+        sobjects = response["sobjects"]
+        if not isinstance(sobjects, list):
+            raise ValueError(
+                f"describe_global expected 'sobjects' to be a list, got: {sobjects}"
+            )
+        return sobjects
 
     def describe_sobject(self, sobject: str) -> dict:
         """Query the Salesforce API to describe the specified sObject."""

@@ -6,7 +6,6 @@ from typing import List, TypedDict
 from jinja2 import Environment, PackageLoader
 
 from cloudy_salesforce.client import SalesforceClient
-from cloudy_salesforce.client.auth import BaseAuthentication
 from cloudy_salesforce.sobjects import SObjects
 
 logger = logging.getLogger(__name__)
@@ -27,21 +26,19 @@ class ObjectDict(TypedDict):
 class SObjectGenerator:
     def __init__(
         self,
-        authentication: BaseAuthentication,
+        sf_client: SalesforceClient,
+        *,
         template_dir: str = "templates",
         template_name: str = "sobject.jinja2",
         output_dir: str = "sobjects",
-    ):
-        self.sf_client = SalesforceClient(auth_strategy=authentication)
+    ) -> None:
+        self.sf_client = sf_client
 
         env = Environment(
             loader=PackageLoader("cloudy_salesforce.generator", template_dir)
         )
         self.template = env.get_template(template_name)
         self.output_dir = output_dir
-
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
 
     def get_objects(
         self,
@@ -102,6 +99,8 @@ class SObjectGenerator:
         fields: List[FieldDict],
         related_imports: List[str],
     ):
+        self._ensure_output_dir()
+
         prepared_fields = [(f["name"], f["type"]) for f in fields]
         picklist_fields = [
             (f["type"], [json.dumps(v) for v in f["picklist"]])
@@ -126,10 +125,13 @@ class SObjectGenerator:
         logger.info("%s generated.", absolute_path)
 
     def generate_init_file(self, class_names: List[str]):
+        self._ensure_output_dir()
+
         init_file_path = os.path.join(self.output_dir, "__init__.py")
         with open(init_file_path, "w") as file:
             for class_name in class_names:
                 file.write(f"from .{class_name} import {class_name}\n")
+            file.write(f"\n__all__ = {repr(class_names)}\n")
         logger.info("%s generated.", init_file_path)
 
     def parse_sf_fields(
@@ -144,6 +146,7 @@ class SObjectGenerator:
         field_dict_list: List[FieldDict] = []
         field_names: set[str] = set()
         related_imports: set[str] = set()
+        used_aliases: set[str] = set()
 
         def add_field(
             name: str, ftype: str, picklist: List[str] | None = None
@@ -158,16 +161,26 @@ class SObjectGenerator:
         for field in fields:
             field_name = field["name"]
             sf_type = field["type"]
-            field_type = parse_type(field_name, sf_type)
-            picklist = None
+            picklist: List[str] | None = None
+
             if sf_type == "picklist":
                 picklist_values = field.get("picklistValues")
+                active_values: List[str] = []
                 if picklist_values:
-                    picklist = [
+                    active_values = [
                         item["value"]
                         for item in picklist_values
                         if item.get("active")
                     ]
+                if active_values:
+                    field_type = unique_picklist_alias(field_name, used_aliases)
+                    picklist = active_values
+                else:
+                    field_type = "str"
+                    picklist = None
+            else:
+                field_type = parse_type(field_name, sf_type)
+
             add_field(field_name, field_type, picklist)
 
             if sf_type == "reference" or field_name in lookup_names:
@@ -197,17 +210,44 @@ class SObjectGenerator:
 
         return field_dict_list, sorted(related_imports)
 
+    def _ensure_output_dir(self) -> None:
+        """Create the output directory if it does not already exist."""
+        os.makedirs(self.output_dir, exist_ok=True)
+
 
 # -----------------------HELPERS-------------------------#
 
 
 def parse_type(field_name: str, field_type: str) -> str:
     if field_type == "picklist":
-        sanitized = "".join(c for c in field_name if c.isalnum())
+        sanitized = "".join(
+            c for c in field_name if c.isalnum() or c == "_"
+        )
         if not sanitized or sanitized[0].isdigit():
             sanitized = f"F{sanitized}"
-        return f"{sanitized.upper()}PICKLIST"
+        return f"{sanitized.upper()}_PICKLIST"
     return salesforce_to_python_type_map.get(field_type, "str")
+
+
+def unique_picklist_alias(field_name: str, used_aliases: set[str]) -> str:
+    """
+    Return a unique picklist Literal alias for a Salesforce picklist field.
+
+    When the base alias is already used, append ``_2``, ``_3``, and so on
+    until a unique name is found.
+    """
+    alias = parse_type(field_name, "picklist")
+    if alias not in used_aliases:
+        used_aliases.add(alias)
+        return alias
+
+    suffix = 2
+    while True:
+        candidate = f"{alias}_{suffix}"
+        if candidate not in used_aliases:
+            used_aliases.add(candidate)
+            return candidate
+        suffix += 1
 
 
 salesforce_to_python_type_map = {

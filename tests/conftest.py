@@ -19,11 +19,14 @@ class DummyAuth(BaseAuthentication):
 
 @pytest.fixture(autouse=True)
 def isolate_sobject_registry():
-    """Restore the global sObject registry after each test."""
+    """Restore the global sObject registry and type-hint cache after each test."""
     saved = sobject_mod._SObjectRegistry.copy()
+    saved_hints = sobject_mod._type_hints_cache.copy()
     yield
     sobject_mod._SObjectRegistry.clear()
     sobject_mod._SObjectRegistry.update(saved)
+    sobject_mod._type_hints_cache.clear()
+    sobject_mod._type_hints_cache.update(saved_hints)
 
 
 @pytest.fixture(autouse=True)

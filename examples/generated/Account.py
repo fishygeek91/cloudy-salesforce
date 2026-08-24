@@ -4,17 +4,22 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from cloudy_salesforce.sobjects import sobject
+from cloudy_salesforce.types import UNSET, UnsetType
 
 if TYPE_CHECKING:
     from .Opportunity import Opportunity
 
-INDUSTRYPICKLIST = Literal["Technology", "Finance", "Healthcare"] | str
+INDUSTRY_PICKLIST = Literal["Technology", "Finance", "Healthcare"] | str
 
 @sobject()
 @dataclass
 class Account:
-    Id: str | None = None
-    Name: str | None = None
-    Industry: INDUSTRYPICKLIST | None = None
-    OwnerId: str | None = None
-    Opportunities: list[Opportunity] | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    Industry: INDUSTRY_PICKLIST | None | UnsetType = UNSET
+    OwnerId: str | None | UnsetType = UNSET
+    Opportunities: list[Opportunity] | None | UnsetType = UNSET
+
+# Runtime imports after the class body so circular relationships resolve.
+
+from .Opportunity import Opportunity  # noqa: E402

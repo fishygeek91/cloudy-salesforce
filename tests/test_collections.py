@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import importlib
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
@@ -14,6 +17,7 @@ from cloudy_salesforce.collections.crud_operations import (
 )
 from cloudy_salesforce.collections.serialize import serialize_record
 from cloudy_salesforce.sobjects import sobject
+from cloudy_salesforce.types import UNSET, UnsetType
 
 
 class FakeClient:
@@ -45,28 +49,28 @@ def _props(records, all_or_none=True):
 @sobject()
 @dataclass
 class Account:
-    Id: str | None = None
-    Name: str | None = None
-    Industry: str | None = None
-    Description: str | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    Industry: str | None | UnsetType = UNSET
+    Description: str | None | UnsetType = UNSET
 
 
 @sobject()
 @dataclass
 class Opportunity:
-    Id: str | None = None
-    Name: str | None = None
-    AccountId: str | None = None
-    Account: Account | None = None
+    Id: str | None | UnsetType = UNSET
+    Name: str | None | UnsetType = UNSET
+    AccountId: str | None | UnsetType = UNSET
+    Account: Account | None | UnsetType = UNSET
 
 
 @sobject()
 @dataclass
 class Event:
-    Id: str | None = None
-    Subject: str | None = None
-    ActivityDate: date | None = None
-    StartDateTime: datetime | None = None
+    Id: str | None | UnsetType = UNSET
+    Subject: str | None | UnsetType = UNSET
+    ActivityDate: date | None | UnsetType = UNSET
+    StartDateTime: datetime | None | UnsetType = UNSET
 
 
 def _success_response(record_id: str, *, created: bool | None = None) -> list[dict]:
@@ -137,13 +141,29 @@ def test_insert_dataclass_serializes_to_composite_body():
     assert body_record["attributes"]["type"] == "Account"
     assert body_record["Name"] == "Acme"
     assert body_record["Industry"] == "Technology"
-    assert "Description" not in body_record
+    assert "Description" in body_record
+    assert body_record["Description"] is None
     assert len(results) == 1
     assert isinstance(results[0], DmlResult)
     assert results[0].id == "001NEW"
     assert results[0].success is True
     assert results[0].created is True
-    assert results[0].record == {"Name": "Acme", "Industry": "Technology"}
+    assert results[0].record == {
+        "Name": "Acme",
+        "Industry": "Technology",
+        "Description": None,
+    }
+
+
+def test_insert_omits_unset_fields():
+    fake = FakeClient([_success_response("001NEW", created=True)])
+    record = Account(Name="Acme", Industry="Technology")
+
+    insert(record, client=fake)
+
+    body_record = fake.calls[0]["body"]["records"][0]
+    assert "Description" not in body_record
+    assert "Id" not in body_record
 
 
 def test_insert_list_of_dataclasses():
@@ -195,6 +215,17 @@ def test_update_from_dataclass():
     assert results[0].success is True
 
 
+def test_update_sends_none_as_json_null():
+    fake = FakeClient([_success_response("001UPD")])
+    record = Account(Id="001UPD", Industry=None)
+
+    update(record, client=fake)
+
+    body_record = fake.calls[0]["body"]["records"][0]
+    assert "Industry" in body_record
+    assert body_record["Industry"] is None
+
+
 def test_delete_from_dataclass():
     fake = FakeClient([_success_response("001DEL")])
     record = Account(Id="001DEL")
@@ -219,6 +250,83 @@ def test_serialize_skips_nested_account_on_opportunity():
 
     assert serialized == {"Name": "Big Deal", "AccountId": "001PARENT"}
     assert "Account" not in serialized
+
+
+def test_serialize_omits_unset_includes_none():
+    account_unset = Account(Name="Acme")
+    account_none = Account(Name="Acme", Description=None)
+
+    assert serialize_record(account_unset) == {"Name": "Acme"}
+    assert serialize_record(account_none) == {"Name": "Acme", "Description": None}
+
+
+@sobject("OldAccount")
+@dataclass
+class OldAccount:
+    Id: str | None = None
+    Name: str | None = None
+    Industry: str | None = None
+
+
+def test_serialize_pre_unset_dataclass_omits_none():
+    serialized = serialize_record(OldAccount(Id="001", Name="x"))
+    assert serialized == {"Id": "001", "Name": "x"}
+    assert "Industry" not in serialized
+
+
+def test_serialize_legacy_unresolved_sibling_does_not_raise(tmp_path):
+    """Pre-UNSET codegen imported TYPE_CHECKING siblings only.
+
+    Importing one module standalone leaves an unresolvable forward ref.
+    serialize_record must still omit None instead of raising NameError.
+    """
+    pkg_dir = tmp_path / "legacy_sobjects"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "Legacy.py").write_text(
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n"
+        "from typing import TYPE_CHECKING\n"
+        "from cloudy_salesforce.sobjects import sobject\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    from .Missing import Missing\n"
+        "\n"
+        "@sobject()\n"
+        "@dataclass\n"
+        "class Legacy:\n"
+        "    Id: str | None = None\n"
+        "    Name: str | None = None\n"
+        "    Related: Missing | None = None\n"
+    )
+    sys.path.insert(0, str(tmp_path))
+    try:
+        mod = importlib.import_module("legacy_sobjects.Legacy")
+        serialized = serialize_record(mod.Legacy(Id="1", Name="n"))
+        assert serialized == {"Id": "1", "Name": "n"}
+        assert "Related" not in serialized
+    finally:
+        sys.path.remove(str(tmp_path))
+        for name in list(sys.modules):
+            if name == "legacy_sobjects" or name.startswith("legacy_sobjects."):
+                del sys.modules[name]
+
+
+def test_serialize_skips_none_relationship():
+    from cloudy_salesforce.sobjects.sobject import parse_record
+
+    opp = parse_record(
+        Opportunity,
+        {"Id": "006", "Name": "n", "Account": None},
+    )
+    serialized = serialize_record(opp)
+    assert serialized == {"Id": "006", "Name": "n"}
+    assert "Account" not in serialized
+
+
+def test_serialize_deepcopy_keeps_unset_identity():
+    serialized = serialize_record(copy.deepcopy(Account(Id="001")))
+    assert serialized == {"Id": "001"}
 
 
 def test_serialize_date_and_datetime_fields():

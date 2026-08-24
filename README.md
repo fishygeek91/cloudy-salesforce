@@ -49,10 +49,16 @@ Requires Python 3.10+.
 cloudy-salesforce init
 ```
 
-Copy `.env.example` to `.env` and fill in `SF_USERNAME`, `SF_PASSWORD`, and `SF_SECURITY_TOKEN`, then run codegen against your org:
+Copy `.env.example` to `.env` and fill in `SF_USERNAME`, `SF_PASSWORD`, and `SF_SECURITY_TOKEN` (optional — credentials can also come from the process environment, which is typical in CI/CD). Then run codegen against your org:
 
 ```bash
 cloudy-salesforce generate --alias prod
+```
+
+Output directory defaults to `./sobjects/`; override with `--out`. API version defaults from the alias in `.cloudy_config` (via `SalesforceClient.from_config`); override with `--api-version`:
+
+```bash
+cloudy-salesforce generate --alias prod --out examples/generated --api-version v62.0
 ```
 
 Limit to specific sObjects:
@@ -61,7 +67,7 @@ Limit to specific sObjects:
 cloudy-salesforce generate --alias prod --sobjects Account
 ```
 
-Codegen writes dataclass modules to `./sobjects/` by default.
+`cloudy-salesforce init` writes `.env.example` and a starter `.cloudy_config`; alias `api_version` in `.cloudy_config` is honored when you do not pass `--api-version`.
 
 ## Query
 
@@ -82,6 +88,8 @@ account.Industry
 ```
 
 Operators use a suffix: `Name__like="Acme%"`, `Industry__in=["Technology", "Finance"]`, `CreatedDate__gte=...`, `Id__null=False`. `select()` with no fields picks every scalar field (not child relationships). `to_soql()` renders the string without calling the API.
+
+Naive `datetime` values in `where()` / `soql_literal` are treated as UTC (same as serialize). Numeric literals: floats are rendered in decimal form (not scientific notation); `decimal.Decimal` is accepted.
 
 Raw SOQL still works — use it for subqueries the builder does not cover yet:
 
@@ -113,11 +121,14 @@ accounts = Account.select("Id").execute()
 
 ## Insert, update, upsert, delete
 
-Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`; `None` fields and nested relationship objects are omitted.
+Pass a generated dataclass (or a list of them). The sObject API name is taken from `__sf_meta__`. Generated fields default to `UNSET` and are omitted from DML payloads; explicit `None` is sent as JSON null (clears the field on update/upsert) when the class uses `UnsetType` in its annotations. Dataclasses generated before UNSET still omit `None`, so upgrading the package without regenerating cannot wipe fields. Nested relationship objects — including `None` lookups — are omitted (the composite API rejects `"Account": null`). After `parse_record` / query, fields the query did not select stay `UNSET`, not `None` — use `is UNSET` (import `UNSET` from `cloudy_salesforce`) rather than `is None` to tell whether a field was selected. `UNSET` is falsy, so `account.Name or "n/a"` works. `None` from Salesforce (explicit null in the JSON) still becomes Python `None`. Regenerate sObjects to pick up `UNSET` defaults and the ability to clear fields.
 
 ```python
 from cloudy_salesforce import insert, update, upsert, delete
 from sobjects import Account
+
+insert(Account(Name="Acme"), client=client)  # other fields omitted
+update(Account(Id="001...", Industry=None), client=client)  # sends Industry: null
 
 results = insert(Account(Name="Acme", Industry="Technology"), client=client)
 results[0].id
@@ -154,7 +165,7 @@ flowchart LR
 | Lookup / reference field | `str \| None` (Id); relationship object only if that sObject is also generated |
 | Standard scalar fields | `str`, `int`, `float`, `bool`, `datetime.date`, or `datetime.datetime` |
 
-Picklist literals reflect active values at generation time. The `| str` fallback covers values added to the org later.
+Generated scalar and lookup fields default to `UNSET` (omitted from DML); type annotations include `| None | UnsetType = UNSET`. Picklist literals reflect active values at generation time. The `| str` fallback covers values added to the org later.
 
 ## Authentication
 
@@ -168,6 +179,8 @@ auth = UsernamePasswordAuthentication(
 )
 client = SalesforceClient(auth)
 ```
+
+`SalesforceClient` retries rate limits, honors `Retry-After` (capped at 30s), and re-authenticates once on `INVALID_SESSION_ID` for username/password and JWT auth (not session-token auth). Optional `retries=` and `timeout=` kwargs.
 
 JWT bearer flow (Connected App with certificate):
 

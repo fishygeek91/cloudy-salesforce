@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
-from typing import Any
+import types
+from typing import Any, Union, get_args, get_origin
+
+from cloudy_salesforce.types import UNSET, UnsetType
 
 
 def _is_sobject_type(cls: type) -> bool:
@@ -39,13 +42,60 @@ def _serialize_value(value: Any) -> Any:
     return value
 
 
+def _annotation_includes_unset(annotation: object) -> bool:
+    """True when a field annotation includes ``UnsetType`` (UNSET-aware classes)."""
+    if annotation is UnsetType:
+        return True
+    if isinstance(annotation, str):
+        parts = [part.strip() for part in annotation.split("|")]
+        return "UnsetType" in parts
+    origin = get_origin(annotation)
+    if origin is Union or origin is types.UnionType:
+        return any(_annotation_includes_unset(arg) for arg in get_args(annotation))
+    return False
+
+
+def _record_field_hints(record_type: type) -> dict[str, object]:
+    """Return type hints for serialization, falling back if siblings are unresolved.
+
+    Pre-UNSET generated modules import related types under ``TYPE_CHECKING`` only.
+    Importing one module standalone then leaves forward refs that ``get_type_hints``
+    cannot resolve. Raw ``__annotations__`` still contain ``UnsetType`` and
+    relationship names as strings, which is enough for DML omit/null decisions.
+    """
+    from cloudy_salesforce.sobjects.sobject import get_sobject_type_hints
+
+    try:
+        return get_sobject_type_hints(record_type)
+    except NameError:
+        raw = getattr(record_type, "__annotations__", {})
+        return dict(raw)
+
+
 def serialize_record(record: Any) -> dict[str, Any]:
+    """Serialize an sObject instance to a composite API record dict.
+
+    Fields set to ``UNSET`` are omitted. Explicit ``None`` is sent as JSON null
+    only when the field annotation includes ``UnsetType`` (generated classes
+    after UNSET landed). Pre-UNSET dataclasses still omit ``None``. Nested
+    relationship fields are never sent as null — the composite API rejects them.
+    """
     if not is_sobject_instance(record):
         raise TypeError(f"Expected sObject instance, got {type(record).__name__}")
+    from cloudy_salesforce.query.builder import _is_relationship_annotation
+
+    hints = _record_field_hints(type(record))
     result: dict[str, Any] = {}
     for field in dataclasses.fields(record):
         value = getattr(record, field.name)
+        if value is UNSET:
+            continue
+        annotation = hints.get(field.name)
         if value is None:
+            if annotation is not None and _is_relationship_annotation(annotation):
+                continue
+            if _annotation_includes_unset(annotation):
+                result[field.name] = None
             continue
         if _should_skip_value(value):
             continue
