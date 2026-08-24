@@ -160,8 +160,16 @@ git. The projection keeps what breaks integrations — type, nillable, length,
 precision/scale, updateable, active picklist values, `referenceTo`, child
 relationship names — not the multi-megabyte raw describe. Detected change kinds:
 sObject added/removed, field added/removed, type, nillable, length,
-precision/scale, updateable, picklist values added/removed (no rename guessing —
-a rename shows as removed + added), and child relationship changes.
+precision/scale, updateable, unique, lookup target (`referenceTo`), restricted
+picklist, picklist values added/removed (no rename guessing — a rename shows as
+removed + added), and child relationship changes.
+
+Live `diff --alias` describes exactly the sObjects in the baseline (at the
+baseline's API version unless you pass `--api-version`), so a deleted object
+shows up as `sObject removed` rather than a describe error, and config changes
+never masquerade as schema drift. With `--out` pointing at the baseline file,
+the fresh snapshot is only written when the diff is clean — a drifted baseline
+is never silently replaced.
 
 ## Insert, update, upsert, delete
 

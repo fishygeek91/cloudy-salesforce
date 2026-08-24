@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Schema Sentinel: diff also detects `unique`, `referenceTo` (lookup retarget), and `restrictedPicklist` changes; live `diff --alias` reproduces the baseline's sObject set and API version, tolerates deleted sObjects (`sobject_removed` instead of aborting), and refuses to overwrite a drifted baseline via `--out`
 - Schema Sentinel: `cloudy-salesforce snapshot` and `cloudy-salesforce diff` — capture a typed projection of org describes and diff two snapshots (or a snapshot vs the live org). Pure `diff_snapshots()` with no Salesforce I/O; exit code 1 on drift for CI; `--json` and `--format slack` outputs; `--all-custom` via `describe_global()`; offline fixtures in `examples/snapshots/`
 - `cloudy_salesforce/sentinel/` package: `Snapshot`/`FieldSnapshot` TypedDicts, `Change` dataclass, snapshot projection and stable JSON writer
 
