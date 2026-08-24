@@ -78,22 +78,75 @@ def test_diff_rejects_file_and_alias_together():
         args.handler(args)
 
 
-def test_diff_live_uses_alias_and_writes_out(tmp_path, monkeypatch, capsys):
+def test_diff_live_uses_baseline_set_and_writes_out(tmp_path, monkeypatch, capsys):
     fresh = json.loads((FIXTURES / "drifted.json").read_text(encoding="utf-8"))
     monkeypatch.setattr(
         cli, "_snapshot_live", MagicMock(return_value=fresh)
     )
-    out = tmp_path / "prod.json"
+    out = tmp_path / "fresh.json"
     code = _run(
         ["diff", str(FIXTURES / "base.json"), "--alias", "prod", "--out", str(out)]
     )
     assert code == 1
+    # Live diff reproduces the baseline's sObject set and API version.
     cli._snapshot_live.assert_called_once_with(
-        "prod", sobjects=None, all_custom=False, api_version=None
+        "prod",
+        sobjects=None,
+        all_custom=False,
+        api_version="v61.0",
+        sobject_names=["Account", "Opportunity"],
+        missing_ok=True,
     )
+    # A distinct --out path is written even when the diff reports drift.
     assert json.loads(out.read_text(encoding="utf-8")) == json.loads(
         json.dumps(fresh, sort_keys=True)
     )
+
+
+def test_diff_live_api_version_flag_wins(monkeypatch):
+    fresh = json.loads((FIXTURES / "base.json").read_text(encoding="utf-8"))
+    mock = MagicMock(return_value=fresh)
+    monkeypatch.setattr(cli, "_snapshot_live", mock)
+    code = _run(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            "--alias",
+            "prod",
+            "--api-version",
+            "v63.0",
+        ]
+    )
+    assert code == 0
+    assert mock.call_args.kwargs["api_version"] == "v63.0"
+
+
+def test_diff_live_refuses_to_overwrite_drifted_baseline(tmp_path, monkeypatch):
+    baseline = tmp_path / "prod.json"
+    baseline.write_text(
+        (FIXTURES / "base.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    original = baseline.read_text(encoding="utf-8")
+    fresh = json.loads((FIXTURES / "drifted.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(cli, "_snapshot_live", MagicMock(return_value=fresh))
+    code = _run(["diff", str(baseline), "--alias", "prod", "--out", str(baseline)])
+    assert code == 1
+    # Baseline untouched: the next CI run still fails until drift is resolved.
+    assert baseline.read_text(encoding="utf-8") == original
+
+
+def test_diff_live_clean_updates_baseline_in_place(tmp_path, monkeypatch):
+    baseline = tmp_path / "prod.json"
+    baseline.write_text(
+        (FIXTURES / "base.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    fresh = json.loads((FIXTURES / "base.json").read_text(encoding="utf-8"))
+    fresh["captured_at"] = "2026-08-25T00:00:00+00:00"
+    monkeypatch.setattr(cli, "_snapshot_live", MagicMock(return_value=fresh))
+    code = _run(["diff", str(baseline), "--alias", "prod", "--out", str(baseline)])
+    assert code == 0
+    written = json.loads(baseline.read_text(encoding="utf-8"))
+    assert written["captured_at"] == "2026-08-25T00:00:00+00:00"
 
 
 def test_snapshot_command_writes_default_path(tmp_path, monkeypatch):
