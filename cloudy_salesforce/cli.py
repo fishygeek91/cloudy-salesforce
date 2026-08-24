@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import sys
+from pathlib import Path
 
 from cloudy_salesforce.client.salesforceclient import SalesforceClient
 from cloudy_salesforce.generator.cli import add_generate_parser, add_init_parser
@@ -38,14 +39,29 @@ def _snapshot_live(
     sobjects: str | None,
     all_custom: bool,
     api_version: str | None,
+    sobject_names: list[str] | None = None,
+    missing_ok: bool = False,
 ) -> Snapshot:
+    """Snapshot the live org.
+
+    ``sobject_names`` (when given) wins over ``sobjects``/``all_custom``/config
+    resolution — the live-diff path passes the baseline's exact sObject set so a
+    deleted object shows up as ``sobject_removed`` instead of describe noise.
+    """
     client = SalesforceClient.from_config(alias=alias, api_version=api_version)
-    names = resolve_sobject_names(
-        SObjects(sf_client=client),
-        sobject_names=_split_names(sobjects),
-        all_custom=all_custom,
+    explicit_names = _split_names(sobjects)
+    if sobject_names is None:
+        sobject_names = resolve_sobject_names(
+            SObjects(sf_client=client),
+            sobject_names=explicit_names,
+            all_custom=all_custom,
+        )
+        # A typo in --sobjects should fail fast; a config-list object that was
+        # deleted from the org should be treated as absent.
+        missing_ok = missing_ok or explicit_names is None
+    return build_snapshot(
+        client, sobject_names, alias=alias, missing_ok=missing_ok
     )
-    return build_snapshot(client, names, alias=alias)
 
 
 def snapshot_command(args: argparse.Namespace) -> int:
@@ -74,18 +90,30 @@ def diff_command(args: argparse.Namespace) -> int:
     if args.new is not None:
         new = load_snapshot(args.new)
     elif args.alias is not None:
+        # Reproduce the baseline's exact sObject set and API version so the
+        # live diff reports schema drift, not set/version differences.
         new = _snapshot_live(
             args.alias,
             sobjects=None,
             all_custom=False,
-            api_version=args.api_version,
+            api_version=args.api_version or old["api_version"] or None,
+            sobject_names=sorted(old["sobjects"]),
+            missing_ok=True,
         )
-        if args.out:
-            write_snapshot(new, args.out)
     else:
         raise SystemExit("diff needs a second snapshot file or --alias")
 
     changes = diff_snapshots(old, new)
+    if args.alias is not None and args.out:
+        same_file = Path(args.out).resolve() == Path(args.old).resolve()
+        if changes and same_file:
+            logger.warning(
+                "Not overwriting baseline %s while drift is unresolved; "
+                "pass a different --out to keep the fresh snapshot.",
+                args.old,
+            )
+        else:
+            write_snapshot(new, args.out)
     if args.json:
         print(json.dumps([change.to_dict() for change in changes], indent=2))
     elif args.format == "slack":
@@ -150,7 +178,10 @@ def build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument(
         "--out",
         default=None,
-        help="With --alias: also write the fresh snapshot here.",
+        help=(
+            "With --alias: also write the fresh snapshot here. Refuses to "
+            "overwrite the baseline file while the diff reports changes."
+        ),
     )
     diff_parser.add_argument(
         "--json", action="store_true", help="Print the machine-readable change set."
