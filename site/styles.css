@@ -1,0 +1,616 @@
+/* Schema Sentinel landing page.
+   System fonts only. No images. Dark theme with an amber watch-color.
+   Progressive enhancement lives in ./dist/main.js and must not be required. */
+
+:root {
+  color-scheme: dark;
+  --bg: #090807;
+  --bg-elevated: #12110e;
+  --bg-term: #0c0b09;
+  --ink: #f3efe6;
+  --ink-muted: #a9a294;
+  --ink-faint: #6f695e;
+  --line: rgba(243, 239, 230, 0.1);
+  --line-strong: rgba(243, 239, 230, 0.18);
+  --accent: #e8b56a;
+  --accent-strong: #f3c57d;
+  --accent-ink: #1a1408;
+  --accent-ring: rgba(232, 181, 106, 0.38);
+  --danger: #e8a396;
+  --ok: #b7d3a6;
+  --radius: 10px;
+  --wrap: 42rem;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232, 181, 106, 0.11), transparent 58%),
+    linear-gradient(rgba(232, 181, 106, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 181, 106, 0.035) 1px, transparent 1px);
+  background-size: auto, 4.5rem 4.5rem, 4.5rem 4.5rem;
+  background-attachment: fixed;
+}
+
+/* Thin scanline texture. Pointer-events stay off so links remain usable. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.12) 2px,
+    rgba(0, 0, 0, 0.12) 3px
+  );
+  opacity: 0.35;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.55;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 10;
+  padding: 0.45rem 0.8rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.wrap {
+  width: min(var(--wrap), calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+/* Visible keyboard focus. Mouse users keep the quieter :focus-visible path. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--accent-strong);
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--accent-strong);
+}
+
+/* Hero occupies one viewport so the break lands before the fold. */
+.hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 4.5rem 0 3.5rem;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 1.75rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.eyebrow-mark {
+  display: inline-block;
+  width: 1.5rem;
+  height: 2px;
+  background: var(--accent);
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  max-width: 13.5em;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2.15rem, 7vw, 4.15rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.lede,
+.audience,
+.block-copy {
+  max-width: 38rem;
+}
+
+.lede {
+  margin: 0 0 1rem;
+  color: var(--ink);
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.audience {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 1rem;
+}
+
+/* Numbered blocks after the fold. */
+.block,
+.footer {
+  position: relative;
+  padding: 5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.index {
+  margin: 0 0 0.85rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+}
+
+h2 {
+  margin: 0 0 1.15rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3vw, 2.15rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.block-copy {
+  margin: 0 0 1.75rem;
+  color: var(--ink-muted);
+}
+
+/* Terminal chrome around install, demo, and sample output. */
+.term {
+  margin: 0 0 1rem;
+  overflow: hidden;
+  background: var(--bg-term);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.command-label {
+  margin: 1.35rem 0 0.45rem;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.15rem;
+  padding: 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: #141310;
+}
+
+.term-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #3d3a34;
+}
+
+.term-dot:nth-child(1) {
+  background: #6a4038;
+}
+
+.term-dot:nth-child(2) {
+  background: #6a5a34;
+}
+
+.term-dot:nth-child(3) {
+  background: #3d4a38;
+}
+
+.term-title {
+  margin-left: 0.45rem;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+pre {
+  margin: 0;
+  padding: 1rem 1.05rem 1.1rem;
+  overflow-x: auto;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  -webkit-overflow-scrolling: touch;
+}
+
+pre code {
+  color: inherit;
+  font-size: inherit;
+}
+
+.term-sample pre {
+  color: #d7c7a6;
+}
+
+.ext-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.4rem;
+  margin: 1.4rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+/* Price is a display figure. JS may replace the text inside #price-usd. */
+.price-lockup {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  margin: 0 0 2rem;
+}
+
+#price-usd {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8vw, 4.5rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.price-meta {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lists {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.list-card {
+  padding: 1.15rem 1.2rem 1.2rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.list-card-in {
+  border-left: 3px solid var(--accent);
+}
+
+.list-card-out {
+  border-left: 3px solid #3a3732;
+}
+
+h3 {
+  margin: 0 0 0.7rem;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.list-card ul {
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  color: var(--ink-muted);
+}
+
+.list-card li + li {
+  margin-top: 0.45rem;
+}
+
+/* Buy control: muted while aria-disabled="true"; solid amber once JS enables it. */
+.buy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.15rem;
+  padding: 0.85rem 1.25rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.buy-button:hover {
+  background: var(--accent-strong);
+  color: var(--accent-ink);
+}
+
+.buy-button[aria-disabled="true"] {
+  border-color: #3a362f;
+  background: #181612;
+  color: #a39b8d;
+  cursor: not-allowed;
+}
+
+.buy-button[aria-disabled="true"]:hover {
+  border-color: #3a362f;
+  background: #181612;
+  color: #a39b8d;
+}
+
+.buy-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Waitlist form. Native controls, 16px text so iOS does not zoom. */
+#waitlist-form {
+  display: grid;
+  gap: 1.15rem;
+  padding: 1.35rem 1.25rem 1.4rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+label,
+legend {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.req {
+  color: var(--accent);
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+}
+
+input[type="email"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  background: var(--bg-term);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+select {
+  min-height: 2.85rem;
+}
+
+textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+input[type="email"]:hover,
+select:hover,
+textarea:hover {
+  border-color: #6a5a3c;
+}
+
+input[type="email"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+}
+
+.radio label {
+  font-weight: 400;
+}
+
+input[type="radio"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.form-errors:empty {
+  display: none;
+}
+
+.form-errors {
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+#waitlist-success {
+  margin: 0;
+  color: var(--ok);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#waitlist-submit {
+  min-height: 3.15rem;
+  padding: 0.85rem 1.25rem;
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+#waitlist-submit:hover {
+  background: var(--accent-strong);
+}
+
+#waitlist-submit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.footer {
+  padding-bottom: 4.5rem;
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+}
+
+.footer p {
+  margin: 0 0 1rem;
+  max-width: 38rem;
+}
+
+.footer p:last-child {
+  margin-bottom: 0;
+}
+
+@media (min-width: 720px) {
+  .lists {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .buy-button {
+    width: auto;
+    min-width: 22rem;
+  }
+}
+
+@media (max-width: 639px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .wrap {
+    width: min(var(--wrap), calc(100% - 1.75rem));
+  }
+
+  .hero,
+  .block,
+  .footer {
+    padding-top: 3.25rem;
+    padding-bottom: 3.25rem;
+  }
+
+  .lede {
+    font-size: 1.05rem;
+  }
+
+  #waitlist-form {
+    padding: 1.1rem 0.95rem 1.15rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .buy-button,
+  #waitlist-submit {
+    transition: none;
+  }
+}

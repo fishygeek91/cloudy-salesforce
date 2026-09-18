@@ -1,0 +1,16 @@
+{
+  "name": "cloudy-salesforce-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild site/main.ts --bundle --format=iife --outfile=site/dist/main.js",
+    "test": "npm run typecheck && node --test tests/offer.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
