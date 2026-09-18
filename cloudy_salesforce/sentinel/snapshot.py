@@ -37,9 +37,14 @@ _OPTIONAL_BOOL_KEYS = (
     "nillable",
     "unique",
     "updateable",
+    "createable",
     "custom",
+    "externalId",
+    "calculated",
+    "htmlFormatted",
     "restrictedPicklist",
 )
+_OPTIONAL_STR_KEYS = ("extraTypeInfo", "relationshipName")
 
 
 def project_field(field: dict) -> FieldSnapshot:
@@ -55,6 +60,10 @@ def project_field(field: dict) -> FieldSnapshot:
     for key in _OPTIONAL_INT_KEYS:
         value = field.get(key)
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            projected[key] = value  # type: ignore[literal-required]
+    for key in _OPTIONAL_STR_KEYS:
+        value = field.get(key)
+        if isinstance(value, str) and value:
             projected[key] = value  # type: ignore[literal-required]
     if field.get("type") == "picklist" or field.get("type") == "multipicklist":
         raw_values = field.get("picklistValues") or []

@@ -44,6 +44,10 @@ DESCRIBE_ACCOUNT = {
             "custom": False,
             "length": 40,
             "restrictedPicklist": False,
+            "createable": True,
+            "externalId": False,
+            "calculated": False,
+            "htmlFormatted": False,
             "picklistValues": [
                 {"value": "Technology", "active": True},
                 {"value": "Banking", "active": True},
@@ -59,6 +63,8 @@ DESCRIBE_ACCOUNT = {
             "updateable": True,
             "custom": False,
             "referenceTo": ["User", "Group"],
+            "relationshipName": "Owner",
+            "extraTypeInfo": "",
         },
     ],
     "childRelationships": [
@@ -73,11 +79,17 @@ def test_project_field_picklist_active_sorted():
     assert projected["type"] == "picklist"
     assert projected["picklistValues"] == ["Banking", "Technology"]
     assert projected["restrictedPicklist"] is False
+    assert projected["createable"] is True
+    assert projected["externalId"] is False
+    assert projected["calculated"] is False
+    assert projected["htmlFormatted"] is False
 
 
 def test_project_field_reference_sorted_and_zero_ints_dropped():
     projected = project_field(DESCRIBE_ACCOUNT["fields"][2])
     assert projected["referenceTo"] == ["Group", "User"]
+    assert projected["relationshipName"] == "Owner"
+    assert "extraTypeInfo" not in projected
     id_field = project_field(DESCRIBE_ACCOUNT["fields"][0])
     assert "precision" not in id_field
     assert "scale" not in id_field

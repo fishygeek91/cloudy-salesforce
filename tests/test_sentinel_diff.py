@@ -7,11 +7,16 @@ import json
 from pathlib import Path
 
 from cloudy_salesforce.sentinel import (
+    Change,
     Snapshot,
     diff_snapshots,
+    filter_changes,
+    format_markdown,
     format_slack,
     format_text,
     load_snapshot,
+    parse_kinds,
+    render_html_report,
 )
 
 FIXTURES = Path(__file__).parent.parent / "examples" / "snapshots"
@@ -112,6 +117,104 @@ def test_format_slack_lists_changes():
     block = format_slack(changes)
     assert block.startswith("*4 Salesforce schema change(s) detected:*")
     assert "• Opportunity.NextStep: length 255 → 80" in block
+
+
+def test_format_markdown_table():
+    changes = diff_snapshots(_load("base.json"), _load("drifted.json"))
+    table = format_markdown(changes)
+    assert table.startswith("## 4 Salesforce schema change(s)")
+    assert "| `length_changed` | `Opportunity` | `NextStep` |" in table
+    assert format_markdown([]) == "No schema changes."
+
+
+def test_parse_kinds_and_filter():
+    kinds = parse_kinds("length_changed, field_removed")
+    assert kinds == frozenset({"length_changed", "field_removed"})
+    changes = diff_snapshots(_load("base.json"), _load("drifted.json"))
+    filtered = filter_changes(changes, kinds)
+    assert [(c.kind, c.field) for c in filtered] == [
+        ("length_changed", "NextStep"),
+        ("field_removed", "Tracking_Code__c"),
+    ]
+    assert filter_changes(changes, None) == changes
+
+
+def test_parse_kinds_rejects_unknown():
+    try:
+        parse_kinds("not_a_kind")
+    except ValueError as error:
+        assert "not_a_kind" in str(error)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_optional_bools_ignored_when_absent_on_one_side():
+    old = _load("base.json")
+    new = copy.deepcopy(old)
+    new["sobjects"]["Account"]["fields"]["Name"]["createable"] = False
+    assert diff_snapshots(old, new) == []
+
+
+def test_optional_bools_emit_when_both_sides_present():
+    old = _load("base.json")
+    new = copy.deepcopy(old)
+    name = new["sobjects"]["Account"]["fields"]["Name"]
+    name["createable"] = False
+    name["externalId"] = True
+    name["calculated"] = True
+    name["htmlFormatted"] = True
+    old["sobjects"]["Account"]["fields"]["Name"]["createable"] = True
+    old["sobjects"]["Account"]["fields"]["Name"]["externalId"] = False
+    old["sobjects"]["Account"]["fields"]["Name"]["calculated"] = False
+    old["sobjects"]["Account"]["fields"]["Name"]["htmlFormatted"] = False
+    kinds = {c.kind for c in diff_snapshots(old, new)}
+    assert kinds == {
+        "createable_changed",
+        "external_id_changed",
+        "calculated_changed",
+        "html_formatted_changed",
+    }
+
+
+def test_optional_strings_emit_when_both_sides_present():
+    old = _load("base.json")
+    new = copy.deepcopy(old)
+    new["sobjects"]["Account"]["fields"]["Name"]["extraTypeInfo"] = "personname"
+    new["sobjects"]["Account"]["fields"]["Name"]["relationshipName"] = "Renamed"
+    old["sobjects"]["Account"]["fields"]["Name"]["extraTypeInfo"] = "plain"
+    old["sobjects"]["Account"]["fields"]["Name"]["relationshipName"] = "Name"
+    kinds = {c.kind: c for c in diff_snapshots(old, new)}
+    assert kinds["extra_type_info_changed"].after == "personname"
+    assert kinds["relationship_name_changed"].after == "Renamed"
+
+
+def test_html_report_escapes_and_lists_changes():
+    changes = diff_snapshots(_load("base.json"), _load("drifted.json"))
+    page = render_html_report(
+        changes, old_label="base.json", new_label="drifted.json"
+    )
+    assert "<!DOCTYPE html>" in page
+    assert "Opportunity.NextStep: length 255 → 80" in page
+    assert "base.json" in page
+    empty = render_html_report([], old_label="a", new_label="b")
+    assert "No schema changes" in empty
+
+
+def test_html_report_escapes_markup():
+    change = Change(
+        kind="field_added",
+        sobject="Account",
+        field="<script>",
+        before=None,
+        after="<img>",
+        summary='Account.<script>: field added',
+    )
+    page = render_html_report(
+        [change], old_label="<old>", new_label="<new>"
+    )
+    assert "<script>" not in page
+    assert "&lt;script&gt;" in page
+    assert "&lt;old&gt;" in page
 
 
 def test_diff_unique_reference_and_restricted_changes():

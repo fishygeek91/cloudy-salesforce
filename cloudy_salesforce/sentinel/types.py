@@ -16,13 +16,19 @@ class FieldSnapshot(TypedDict, total=False):
     nillable: bool
     unique: bool
     updateable: bool
+    createable: bool
     custom: bool
+    externalId: bool
+    calculated: bool
+    htmlFormatted: bool
     length: int
     precision: int
     scale: int
     restrictedPicklist: bool
     picklistValues: list[str]
     referenceTo: list[str]
+    extraTypeInfo: str
+    relationshipName: str
 
 
 class SObjectSnapshot(TypedDict):
@@ -55,11 +61,17 @@ ChangeKind = Literal[
     "length_changed",
     "precision_changed",
     "updateable_changed",
+    "createable_changed",
     "unique_changed",
+    "external_id_changed",
+    "calculated_changed",
+    "html_formatted_changed",
     "reference_to_changed",
     "restricted_picklist_changed",
     "picklist_values_added",
     "picklist_values_removed",
+    "extra_type_info_changed",
+    "relationship_name_changed",
     "child_relationship_changed",
 ]
 

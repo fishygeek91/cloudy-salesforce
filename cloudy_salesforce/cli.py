@@ -15,10 +15,14 @@ from cloudy_salesforce.sentinel import (
     build_snapshot,
     default_out_path,
     diff_snapshots,
+    filter_changes,
+    format_markdown,
     format_slack,
     format_text,
     load_snapshot,
+    parse_kinds,
     resolve_sobject_names,
+    write_html_report,
     write_snapshot,
 )
 from cloudy_salesforce.sobjects import SObjects
@@ -103,10 +107,25 @@ def diff_command(args: argparse.Namespace) -> int:
     else:
         raise SystemExit("diff needs a second snapshot file or --alias")
 
-    changes = diff_snapshots(old, new)
+    kinds = None
+    if args.kinds:
+        try:
+            kinds = parse_kinds(args.kinds)
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
+    all_changes = diff_snapshots(old, new)
+    changes = filter_changes(all_changes, kinds)
+    if args.html:
+        comparison = args.new if args.new is not None else f"--alias {args.alias}"
+        write_html_report(
+            changes,
+            args.html,
+            old_label=args.old,
+            new_label=str(comparison),
+        )
     if args.alias is not None and args.out:
         same_file = Path(args.out).resolve() == Path(args.old).resolve()
-        if changes and same_file:
+        if all_changes and same_file:
             logger.warning(
                 "Not overwriting baseline %s while drift is unresolved; "
                 "pass a different --out to keep the fresh snapshot.",
@@ -118,6 +137,8 @@ def diff_command(args: argparse.Namespace) -> int:
         print(json.dumps([change.to_dict() for change in changes], indent=2))
     elif args.format == "slack":
         print(format_slack(changes))
+    elif args.format == "markdown":
+        print(format_markdown(changes))
     else:
         print(format_text(changes))
     return 1 if changes else 0
@@ -188,9 +209,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     diff_parser.add_argument(
         "--format",
-        choices=("text", "slack"),
+        choices=("text", "slack", "markdown"),
         default="text",
         help="Human output format (default: text).",
+    )
+    diff_parser.add_argument(
+        "--kinds",
+        default=None,
+        help=(
+            "Comma-separated change kinds to keep (CI filter). "
+            "Unknown names exit with an error. Exit code uses the filtered set."
+        ),
+    )
+    diff_parser.add_argument(
+        "--html",
+        default=None,
+        help="Write a standalone HTML report to this path.",
     )
     diff_parser.add_argument(
         "--api-version", default=None, help="Override REST API version."

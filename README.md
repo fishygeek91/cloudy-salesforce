@@ -138,7 +138,9 @@ Opportunity.Tracking_Code__c: field removed
 
 Exit code is `0` when the snapshots match and `1` when anything changed, so a
 scheduled CI job can fail the pipeline on drift. `--json` prints the machine
-change set; `--format slack` prints a paste-ready text block.
+change set; `--format slack` and `--format markdown` print paste-ready blocks;
+`--kinds length_changed,field_removed` keeps only those kinds (exit code
+follows the filtered set); `--html report.html` writes a standalone report.
 
 Snapshot a live org (uses the same `.cloudy_config` aliases as `generate`;
 defaults to the config `sobjects` list — never every standard object):
@@ -157,12 +159,16 @@ cloudy-salesforce diff snapshots/prod.json --alias prod --out snapshots/prod.jso
 
 Snapshots are stable JSON (UTF-8, sorted keys, indent 2) so they diff cleanly in
 git. The projection keeps what breaks integrations — type, nillable, length,
-precision/scale, updateable, active picklist values, `referenceTo`, child
-relationship names — not the multi-megabyte raw describe. Detected change kinds:
-sObject added/removed, field added/removed, type, nillable, length,
-precision/scale, updateable, unique, lookup target (`referenceTo`), restricted
-picklist, picklist values added/removed (no rename guessing — a rename shows as
-removed + added), and child relationship changes.
+precision/scale, updateable, createable, unique, externalId, calculated,
+htmlFormatted, extraTypeInfo, relationshipName, active picklist values,
+`referenceTo`, child relationship names — not the multi-megabyte raw describe.
+Detected change kinds: sObject added/removed, field added/removed, type,
+nillable, length, precision/scale, updateable, createable, unique, externalId,
+calculated, htmlFormatted, lookup target (`referenceTo`), restricted picklist,
+picklist values added/removed (no rename guessing — a rename shows as
+removed + added), extraTypeInfo, relationshipName, and child relationship
+changes. New keys are omitted from older snapshots; a missing key is not a
+change.
 
 Live `diff --alias` describes exactly the sObjects in the baseline (at the
 baseline's API version unless you pass `--api-version`), so a deleted object
