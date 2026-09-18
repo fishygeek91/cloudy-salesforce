@@ -24,7 +24,7 @@ export interface SiteConfig {
  */
 export const siteConfig: SiteConfig = {
   paymentLink: "",
-  waitlistAction: "",
+  waitlistAction: "https://formspree.io/f/mnpnnllo",
   priceUsd: 750,
   email: "fishygeek91@gmail.com",
 };
