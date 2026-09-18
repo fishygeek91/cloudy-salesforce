@@ -23,7 +23,7 @@ export interface SiteConfig {
  * never go in this file.
  */
 export const siteConfig: SiteConfig = {
-  paymentLink: "",
+  paymentLink: "https://buy.stripe.com/5kQ4gygEBdGngPf1MC3Ru00",
   waitlistAction: "https://formspree.io/f/mnpnnllo",
   priceUsd: 750,
   email: "fishygeek91@gmail.com",
