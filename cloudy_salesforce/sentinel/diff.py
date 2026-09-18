@@ -2,7 +2,78 @@
 
 from __future__ import annotations
 
-from .types import Change, FieldSnapshot, Snapshot, SObjectSnapshot
+from typing import get_args
+
+from .types import Change, ChangeKind, FieldSnapshot, Snapshot, SObjectSnapshot
+
+#: Every v1 change kind. Used by ``--kinds`` validation.
+CHANGE_KINDS: frozenset[ChangeKind] = frozenset(get_args(ChangeKind))
+
+
+def _append_optional_bool(
+    changes: list[Change],
+    *,
+    sobject: str,
+    field: str,
+    prefix: str,
+    before: FieldSnapshot,
+    after: FieldSnapshot,
+    key: str,
+    kind: ChangeKind,
+) -> None:
+    """Emit a bool-attribute change only when both snapshots recorded the key.
+
+    Older v1 files omit ``createable`` / ``externalId`` / ``calculated`` /
+    ``htmlFormatted``. Treating a missing key as a flip would false-positive
+    every live diff against a pre-0.5.1 baseline.
+    """
+    if key not in before or key not in after:
+        return
+    old_value = before.get(key)
+    new_value = after.get(key)
+    if old_value == new_value:
+        return
+    changes.append(
+        Change(
+            kind=kind,
+            sobject=sobject,
+            field=field,
+            before=old_value,
+            after=new_value,
+            summary=f"{prefix}: {key} {old_value} → {new_value}",
+        )
+    )
+
+
+def _append_optional_str(
+    changes: list[Change],
+    *,
+    sobject: str,
+    field: str,
+    prefix: str,
+    before: FieldSnapshot,
+    after: FieldSnapshot,
+    key: str,
+    kind: ChangeKind,
+    label: str,
+) -> None:
+    """Emit a string-attribute change only when both snapshots recorded the key."""
+    if key not in before or key not in after:
+        return
+    old_value = before.get(key)
+    new_value = after.get(key)
+    if old_value == new_value:
+        return
+    changes.append(
+        Change(
+            kind=kind,
+            sobject=sobject,
+            field=field,
+            before=old_value,
+            after=new_value,
+            summary=f"{prefix}: {label} {old_value} → {new_value}",
+        )
+    )
 
 
 def _field_changes(
@@ -87,6 +158,47 @@ def _field_changes(
             )
         )
 
+    _append_optional_bool(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="createable",
+        kind="createable_changed",
+    )
+    _append_optional_bool(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="externalId",
+        kind="external_id_changed",
+    )
+    _append_optional_bool(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="calculated",
+        kind="calculated_changed",
+    )
+    _append_optional_bool(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="htmlFormatted",
+        kind="html_formatted_changed",
+    )
+
     old_unique = before.get("unique")
     new_unique = after.get("unique")
     if old_unique != new_unique:
@@ -135,6 +247,29 @@ def _field_changes(
                 summary=f"{prefix}: {word}",
             )
         )
+
+    _append_optional_str(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="extraTypeInfo",
+        kind="extra_type_info_changed",
+        label="extraTypeInfo",
+    )
+    _append_optional_str(
+        changes,
+        sobject=sobject,
+        field=name,
+        prefix=prefix,
+        before=before,
+        after=after,
+        key="relationshipName",
+        kind="relationship_name_changed",
+        label="relationshipName",
+    )
 
     old_values = before.get("picklistValues")
     new_values = after.get("picklistValues")
@@ -275,3 +410,60 @@ def format_slack(changes: list[Change]) -> str:
     lines = [f"*{len(changes)} Salesforce schema change(s) detected:*"]
     lines.extend(f"• {change.summary}" for change in changes)
     return "\n".join(lines)
+
+
+def format_markdown(changes: list[Change]) -> str:
+    """Markdown change set for a PR comment or README gist."""
+    if not changes:
+        return "No schema changes."
+    lines = [
+        f"## {len(changes)} Salesforce schema change(s)",
+        "",
+        "| Kind | Object | Field | Summary |",
+        "| --- | --- | --- | --- |",
+    ]
+    for change in changes:
+        field = change.field if change.field is not None else ""
+        summary = change.summary.replace("|", "\\|")
+        lines.append(
+            f"| `{change.kind}` | `{change.sobject}` | `{field}` | {summary} |"
+        )
+    return "\n".join(lines)
+
+
+def parse_kinds(raw: str) -> frozenset[ChangeKind]:
+    """Parse a comma-separated ``--kinds`` list.
+
+    Raises:
+        ValueError: if any token is not a known ``ChangeKind``.
+    """
+    tokens = [token.strip() for token in raw.split(",") if token.strip()]
+    if not tokens:
+        raise ValueError("--kinds was empty")
+    selected: set[ChangeKind] = set()
+    unknown: list[str] = []
+    for token in tokens:
+        matched: ChangeKind | None = None
+        for kind in CHANGE_KINDS:
+            if kind == token:
+                matched = kind
+                break
+        if matched is None:
+            unknown.append(token)
+        else:
+            selected.add(matched)
+    if unknown:
+        known = ", ".join(sorted(CHANGE_KINDS))
+        raise ValueError(
+            f"unknown change kind(s): {', '.join(unknown)}. Choose from: {known}"
+        )
+    return frozenset(selected)
+
+
+def filter_changes(
+    changes: list[Change], kinds: frozenset[ChangeKind] | None
+) -> list[Change]:
+    """Keep only the requested kinds. ``None`` returns the full list."""
+    if kinds is None:
+        return changes
+    return [change for change in changes if change.kind in kinds]

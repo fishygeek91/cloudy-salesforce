@@ -48,6 +48,84 @@ def test_diff_json_output(capsys):
     }
 
 
+def test_diff_markdown_format(capsys):
+    code = _run(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            str(FIXTURES / "drifted.json"),
+            "--format",
+            "markdown",
+        ]
+    )
+    assert code == 1
+    assert capsys.readouterr().out.startswith("## 4 Salesforce schema change(s)")
+
+
+def test_diff_kinds_filters_exit_zero_when_unmatched(capsys):
+    code = _run(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            str(FIXTURES / "drifted.json"),
+            "--kinds",
+            "sobject_added",
+        ]
+    )
+    assert code == 0
+    assert "No schema changes." in capsys.readouterr().out
+
+
+def test_diff_kinds_keeps_matching(capsys):
+    code = _run(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            str(FIXTURES / "drifted.json"),
+            "--kinds",
+            "length_changed",
+        ]
+    )
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "NextStep" in out
+    assert "Banking" not in out
+
+
+def test_diff_unknown_kinds_exits():
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            str(FIXTURES / "drifted.json"),
+            "--kinds",
+            "not_real",
+        ]
+    )
+    with pytest.raises(SystemExit) as raised:
+        args.handler(args)
+    assert "not_real" in str(raised.value)
+
+
+def test_diff_html_writes_report(tmp_path, capsys):
+    html_path = tmp_path / "drift.html"
+    code = _run(
+        [
+            "diff",
+            str(FIXTURES / "base.json"),
+            str(FIXTURES / "drifted.json"),
+            "--html",
+            str(html_path),
+        ]
+    )
+    assert code == 1
+    text = html_path.read_text(encoding="utf-8")
+    assert "<!DOCTYPE html>" in text
+    assert "length 255" in text
+    assert "Opportunity.NextStep" in capsys.readouterr().out
+
+
 def test_diff_slack_format(capsys):
     code = _run(
         [
@@ -119,6 +197,32 @@ def test_diff_live_api_version_flag_wins(monkeypatch):
     )
     assert code == 0
     assert mock.call_args.kwargs["api_version"] == "v63.0"
+
+
+def test_diff_kinds_does_not_overwrite_when_unfiltered_drift(
+    tmp_path, monkeypatch
+):
+    baseline = tmp_path / "prod.json"
+    baseline.write_text(
+        (FIXTURES / "base.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    original = baseline.read_text(encoding="utf-8")
+    fresh = json.loads((FIXTURES / "drifted.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(cli, "_snapshot_live", MagicMock(return_value=fresh))
+    code = _run(
+        [
+            "diff",
+            str(baseline),
+            "--alias",
+            "prod",
+            "--out",
+            str(baseline),
+            "--kinds",
+            "sobject_added",
+        ]
+    )
+    assert code == 0
+    assert baseline.read_text(encoding="utf-8") == original
 
 
 def test_diff_live_refuses_to_overwrite_drifted_baseline(tmp_path, monkeypatch):

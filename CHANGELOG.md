@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Schema Sentinel: project and diff `createable`, `externalId`, `calculated`, `htmlFormatted`, `extraTypeInfo`, and `relationshipName` when both snapshots recorded the key (older v1 files do not false-positive)
+- `diff --format markdown`, `diff --kinds` (CI filter; exit code uses the filtered set; baseline overwrite still looks at the unfiltered set), `diff --html` standalone report
+
 ## [0.5.0] - 2026-08-24
 
 ### Added
