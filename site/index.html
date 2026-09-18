@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Schema Sentinel — catch Salesforce schema drift before your customers do</title>
+  <meta name="description" content="Schema Sentinel diffs Salesforce schemas from snapshot JSON. The CLI is free. This page sells a one-time setup: a typed Python client, the first snapshot in CI, and a walkthrough of your first change set.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#cli">Skip to content</a>
+
+  <!-- Hero: one viewport. Product name, then the break, then who this is for. -->
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">
+        <span class="eyebrow-mark" aria-hidden="true"></span>
+        Schema Sentinel
+      </p>
+      <h1>Your Salesforce admin just broke your integration.</h1>
+      <p class="lede">Schema Sentinel diffs the schema. This page sells the setup, not the host.</p>
+      <p class="audience">This is for the Python integration engineer whose job silently broke — not the release manager.</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- Block 1: free CLI, offline demo, sample drift, repo + PyPI. -->
+    <section id="cli" class="block">
+      <div class="wrap">
+        <p class="index" aria-hidden="true">01</p>
+        <h2>Free CLI</h2>
+        <p class="block-copy">
+          <code>pip install cloudy-salesforce</code>;
+          <code>snapshot</code> captures an org's schema as stable JSON;
+          <code>diff</code> compares two snapshots offline and exits 1 on drift so CI can fail the pipeline.
+        </p>
+
+        <div class="term">
+          <div class="term-bar" aria-hidden="true">
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-title">install</span>
+          </div>
+          <pre><code>pip install cloudy-salesforce</code></pre>
+        </div>
+
+        <p class="command-label">offline demo — bundled fixtures, no org needed</p>
+        <div class="term">
+          <div class="term-bar" aria-hidden="true">
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-title">diff</span>
+          </div>
+          <pre><code>cloudy-salesforce diff examples/snapshots/base.json examples/snapshots/drifted.json</code></pre>
+        </div>
+
+        <div class="term term-sample">
+          <div class="term-bar" aria-hidden="true">
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-dot"></span>
+            <span class="term-title">sample output</span>
+          </div>
+          <pre>Account.Industry: picklist value "Banking" removed
+Opportunity.Amount: type currency → double
+Opportunity.NextStep: length 255 → 80
+Opportunity.Tracking_Code__c: field removed</pre>
+        </div>
+
+        <p class="ext-links">
+          <a href="https://github.com/fishygeek91/cloudy-salesforce">github.com/fishygeek91/cloudy-salesforce</a>
+          <a href="https://pypi.org/project/cloudy-salesforce/">pypi.org/project/cloudy-salesforce</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- Block 2: one-time setup. Price is a server-rendered default; JS may rewrite it. -->
+    <section id="setup" class="block">
+      <div class="wrap">
+        <p class="index" aria-hidden="true">02</p>
+        <h2>Setup package</h2>
+        <p class="price-lockup">
+          <span id="price-usd">$750</span>
+          <span class="price-meta">USD, once</span>
+        </p>
+
+        <div class="lists">
+          <div class="list-card list-card-in">
+            <h3>What you get</h3>
+            <ul>
+              <li>a typed cloudy-salesforce client generated for your sObjects</li>
+              <li>your first schema snapshot wired into CI, failing the pipeline on drift</li>
+              <li>one human walkthrough of your first change set</li>
+            </ul>
+          </div>
+          <div class="list-card list-card-out">
+            <h3>What you do not get</h3>
+            <ul>
+              <li>hosted hourly snapshots</li>
+              <li>Slack OAuth or alerting integrations</li>
+              <li>an ongoing retainer</li>
+            </ul>
+          </div>
+        </div>
+
+        <a id="buy-button" class="buy-button" role="button" aria-disabled="true" href="#waitlist">Payment link not set — use the waitlist</a>
+      </div>
+    </section>
+
+    <!-- Block 3: hosted product is not for sale. Form posts only when JS is present. -->
+    <section id="waitlist" class="block">
+      <div class="wrap">
+        <p class="index" aria-hidden="true">03</p>
+        <h2>Hosted Sentinel waitlist</h2>
+        <p class="block-copy">Hosted scheduled snapshots may come later; join to hear about it.</p>
+
+        <form id="waitlist-form" novalidate>
+          <div class="field">
+            <label for="waitlist-email">Email <span class="req" aria-hidden="true">*</span></label>
+            <input type="email" id="waitlist-email" name="email" autocomplete="email" required aria-required="true">
+          </div>
+
+          <div class="field">
+            <label for="waitlist-org-type">Org type</label>
+            <select id="waitlist-org-type" name="orgType">
+              <option value="indie">Indie dev</option>
+              <option value="si">SI / consultancy</option>
+              <option value="isv">ISV</option>
+              <option value="in-house">In-house team</option>
+            </select>
+          </div>
+
+          <fieldset class="field">
+            <legend>Have you been burned by a silent schema change?</legend>
+            <div class="radios">
+              <div class="radio">
+                <input type="radio" id="waitlist-burned-yes" name="burned" value="yes">
+                <label for="waitlist-burned-yes">Yes</label>
+              </div>
+              <div class="radio">
+                <input type="radio" id="waitlist-burned-no" name="burned" value="no">
+                <label for="waitlist-burned-no">No</label>
+              </div>
+              <div class="radio">
+                <input type="radio" id="waitlist-burned-story" name="burned" value="story">
+                <label for="waitlist-burned-story">Yes — I have a story</label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="field">
+            <label for="waitlist-story">Your story (optional unless you picked the story option)</label>
+            <textarea id="waitlist-story" name="story" rows="5"></textarea>
+          </div>
+
+          <div id="waitlist-errors" role="alert" class="form-errors"></div>
+          <p id="waitlist-success" hidden>You are on the list. Watch your inbox.</p>
+          <button type="submit" id="waitlist-submit">Join the waitlist</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Block 4: positioning, license, repo. -->
+  <footer class="footer">
+    <div class="wrap">
+      <p class="index" aria-hidden="true">04</p>
+      <p>This is not Gearset, not Copado, and not a deployment tool. Schema Sentinel is a schema-drift detector and typed Python client for integration engineers. Not affiliated with Salesforce, Inc.</p>
+      <p>The CLI is MIT-licensed. Source: <a href="https://github.com/fishygeek91/cloudy-salesforce">github.com/fishygeek91/cloudy-salesforce</a>.</p>
+    </div>
+  </footer>
+
+  <script src="./dist/main.js"></script>
+</body>
+</html>
